@@ -29,6 +29,7 @@ func main() {
 	name := stdin.Text()
 	join := shared.JoinMessage{Type: shared.TypeJoin, V: 1, Name: name}
 	conn.WriteMessage(join)
+	go inputLoop(conn)
 	<-done
 }
 
@@ -72,6 +73,23 @@ func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
 			fmt.Println("countdown recibido, segundos:", msg.Seconds)
 		case shared.TypeStart:
 			fmt.Println("start recibido, termina la simulacion de espera en el lobby")
+		case shared.TypeState:
+			var msg shared.StateMessage
+			if err := shared.DecodeMessage(raw, &msg); err != nil {
+				fmt.Println("error al decodificar state:", err)
+				continue
+			}
+
+			fmt.Println("state recibido:", msg)
+
+		case shared.TypeGameOver:
+			var msg shared.GameOverMessage
+			if err := shared.DecodeMessage(raw, &msg); err != nil {
+				fmt.Println("error al decodificar gameover:", err)
+				continue
+			}
+
+			fmt.Println("game over recibido. ganador:", msg.Winner)			
 		case shared.TypeError:
 			var msg shared.ErrorMessage
 			if err := shared.DecodeMessage(raw, &msg); err != nil {
@@ -83,6 +101,66 @@ func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
 			fmt.Println("tipo de mensaje no manejado todavia:", msgType)
 		}
 	}
+}
+func inputLoop(conn *shared.Conn) {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	fmt.Println("Movimiento:")
+	fmt.Println("w a s d")
+	fmt.Println("wa wd sa sd")
+	fmt.Println("q para salir")
+
+	for scanner.Scan() {
+
+		switch scanner.Text() {
+
+		case "w":
+			sendInput(conn, 0, -1)
+
+		case "s":
+			sendInput(conn, 0, 1)
+
+		case "a":
+			sendInput(conn, -1, 0)
+
+		case "d":
+			sendInput(conn, 1, 0)
+
+		case "wa":
+			sendInput(conn, -1, -1)
+
+		case "wd":
+			sendInput(conn, 1, -1)
+
+		case "sa":
+			sendInput(conn, -1, 1)
+
+		case "sd":
+			sendInput(conn, 1, 1)
+
+		case "q":
+			return
+
+		default:
+			fmt.Println("Movimiento inválido")
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+    	fmt.Println("error leyendo entrada:", err)
+	}
+}
+
+func sendInput(conn *shared.Conn, dx, dy int) error {
+	msg := shared.InputMessage{
+		Type: shared.TypeInput,
+		Dir : shared.Direction{
+			X: dx,
+			Y: dy,
+		},
+	}
+
+	return conn.WriteMessage(msg)
 }
 
 type discoveredServer struct {

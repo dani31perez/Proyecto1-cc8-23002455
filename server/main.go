@@ -97,6 +97,42 @@ func handleClient(netConn net.Conn, l *lobby) {
 			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_JSON"})
 			continue
 		}
-		fmt.Println("mensaje recibido de", p.id, ":", msgType)
+		
+		switch msgType {
+
+			case shared.TypeInput:
+				var msg shared.InputMessage
+				if err := shared.DecodeMessage(raw, &msg); err != nil {
+					conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_FIELD"})
+					continue
+				}
+
+				fmt.Println(
+					"input recibido de",
+					p.id,
+					"direccion:",
+					msg.Dir,
+				)
+
+			case shared.TypeInteract:
+				var msg shared.InteractMessage
+				if err := shared.DecodeMessage(raw, &msg); err != nil {
+					conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_FIELD"})
+					continue
+				}
+
+				fmt.Println(
+					"interact recibido de",
+					p.id,
+					"target:",
+					msg,
+				)
+
+			default:
+				conn.WriteMessage(shared.ErrorMessage{
+					Type:   shared.TypeError,
+					Reason: "UNKNOWN_MESSAGE",
+				})
+		}
 	}
 }
