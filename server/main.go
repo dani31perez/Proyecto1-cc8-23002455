@@ -12,6 +12,7 @@ func main() {
 		fmt.Println("error al abrir socket TCP:", err)
 		os.Exit(1)
 	}
+	l := newLobby()
 	go runDiscovery(tcpPort)
 	fmt.Println("servidor escuchando TCP en puerto", tcpPort)
 	for {
@@ -20,9 +21,10 @@ func main() {
 			fmt.Println("error al aceptar conexion:", err)
 			continue
 		}
-		go handleClient(conn)
+		go handleClient(conn, l)
 	}
 }
+
 func runDiscovery(tcpPort int) {
 	addr := &net.UDPAddr{Port: shared.DiscoveryPort, IP: net.IPv4zero}
 	udpConn, err := net.ListenUDP("udp", addr)
@@ -47,13 +49,14 @@ func runDiscovery(tcpPort int) {
 		shared.SendUDP(udpConn, remote, info)
 	}
 }
-func handleClient(netConn net.Conn) {
+func handleClient(netConn net.Conn, l *lobby) {
 	conn := shared.NewConn(netConn)
 	defer netConn.Close()
-	for {
+	var p *player
+	for p == nil {
 		raw, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Println("cliente desconectado:", err)
+			fmt.Println("cliente desconectado antes de unirse:", err)
 			return
 		}
 		msgType, err := shared.PeekType(raw)
@@ -61,6 +64,39 @@ func handleClient(netConn net.Conn) {
 			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_JSON"})
 			continue
 		}
-		fmt.Println("mensaje recibido:", msgType)
+		if msgType != shared.TypeJoin {
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "NOT_JOINED"})
+			continue
+		}
+		var join shared.JoinMessage
+		if err := shared.DecodeMessage(raw, &join); err != nil {
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_FIELD"})
+			continue
+		}
+		if join.Name == "" || len(join.Name) > 20 {
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "NAME_INVALID"})
+			continue
+		}
+		p = l.addPlayer(join.Name, conn)
+		fmt.Println("join recibido, v:", join.V, "name:", join.Name, "asignado id:", p.id)
+	}
+	defer l.removePlayer(p.id)
+	welcome := shared.WelcomeMessage{Type: shared.TypeWelcome, PlayerID: p.id, Config: shared.GameConfig{MapSize: 1000, CircleRadius: 300, PlayerRadius: 15, InteractRadius: 40, Speed: 200, TickRate: 20}}
+	conn.WriteMessage(welcome)
+	l.broadcastLobby()
+	l.startCountdownOnce()
+	for {
+		raw, err := conn.ReadMessage()
+		if err != nil {
+			fmt.Println("jugador desconectado:", p.id, err)
+			l.broadcastLobby()
+			return
+		}
+		msgType, err := shared.PeekType(raw)
+		if err != nil {
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_JSON"})
+			continue
+		}
+		fmt.Println("mensaje recibido de", p.id, ":", msgType)
 	}
 }

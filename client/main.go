@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"time"
+	"bufio"
 )
 func main() {
 	server, err := discoverServer()
@@ -19,8 +20,20 @@ func main() {
 		os.Exit(1)
 	}
 	conn := shared.NewConn(tcpConn)
-	join := shared.JoinMessage{Type: shared.TypeJoin, V: 1, Name: "jugador1"}
+	state := newClientState()
+	done := make(chan struct{})
+	go readLoop(conn, state, done)
+	stdin := bufio.NewScanner(os.Stdin)
+	fmt.Print("ingresa tu nombre: ")
+	stdin.Scan()
+	name := stdin.Text()
+	join := shared.JoinMessage{Type: shared.TypeJoin, V: 1, Name: name}
 	conn.WriteMessage(join)
+	<-done
+}
+
+func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
+	defer close(done)
 	for {
 		raw, err := conn.ReadMessage()
 		if err != nil {
@@ -29,11 +42,49 @@ func main() {
 		}
 		msgType, err := shared.PeekType(raw)
 		if err != nil {
+			fmt.Println("mensaje invalido recibido:", err)
 			continue
 		}
-		fmt.Println("mensaje del servidor:", msgType)
+		switch msgType {
+		case shared.TypeWelcome:
+			var msg shared.WelcomeMessage
+			if err := shared.DecodeMessage(raw, &msg); err != nil {
+				fmt.Println("error al decodificar welcome:", err)
+				continue
+			}
+			state.setWelcome(msg.PlayerID, msg.Config)
+			fmt.Println("welcome recibido, player_id:", msg.PlayerID, "config:", msg.Config)
+		case shared.TypeLobby:
+			var msg shared.LobbyMessage
+			if err := shared.DecodeMessage(raw, &msg); err != nil {
+				fmt.Println("error al decodificar lobby:", err)
+				continue
+			}
+			state.setLobby(msg.Players)
+			fmt.Println("lobby recibido, jugadores:", msg.Players)
+		case shared.TypeCountdown:
+			var msg shared.CountdownMessage
+			if err := shared.DecodeMessage(raw, &msg); err != nil {
+				fmt.Println("error al decodificar countdown:", err)
+				continue
+			}
+			state.setCountdown(msg.Seconds)
+			fmt.Println("countdown recibido, segundos:", msg.Seconds)
+		case shared.TypeStart:
+			fmt.Println("start recibido, termina la simulacion de espera en el lobby")
+		case shared.TypeError:
+			var msg shared.ErrorMessage
+			if err := shared.DecodeMessage(raw, &msg); err != nil {
+				fmt.Println("error al decodificar error:", err)
+				continue
+			}
+			fmt.Println("error recibido del servidor:", msg.Reason)
+		default:
+			fmt.Println("tipo de mensaje no manejado todavia:", msgType)
+		}
 	}
 }
+
 type discoveredServer struct {
 	shared.ServerInfoMessage
 	IP string
