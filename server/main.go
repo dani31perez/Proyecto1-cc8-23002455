@@ -61,20 +61,24 @@ func handleClient(netConn net.Conn, l *lobby) {
 		}
 		msgType, err := shared.PeekType(raw)
 		if err != nil {
-			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_JSON"})
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrInvalidJSON})
 			continue
 		}
 		if msgType != shared.TypeJoin {
-			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "NOT_JOINED"})
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrNotJoined})
 			continue
 		}
 		var join shared.JoinMessage
 		if err := shared.DecodeMessage(raw, &join); err != nil {
-			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_FIELD"})
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrInvalidField})
 			continue
 		}
+		if join.V != 1 {
+			conn.WriteMessage(shared.ErrorMessage{ Type:   shared.TypeError, Reason: shared.ErrVersionMismatch})
+			return
+		}
 		if join.Name == "" || len(join.Name) > 20 {
-			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "NAME_INVALID"})
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrNameInvalid})
 			continue
 		}
 		p = l.addPlayer(join.Name, conn)
@@ -94,18 +98,19 @@ func handleClient(netConn net.Conn, l *lobby) {
 		}
 		msgType, err := shared.PeekType(raw)
 		if err != nil {
-			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_JSON"})
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrInvalidJSON})
 			continue
 		}
 		
+		 
+
 		switch msgType {
 
 			case shared.TypeInput:
-				var msg shared.InputMessage
-				if err := shared.DecodeMessage(raw, &msg); err != nil {
-					conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_FIELD"})
+				if err := conn.ValidateFields(raw, shared.InputMessage{}); err != nil {
 					continue
 				}
+				var msg shared.InputMessage
 
 				fmt.Println(
 					"input recibido de",
@@ -115,11 +120,10 @@ func handleClient(netConn net.Conn, l *lobby) {
 				)
 
 			case shared.TypeInteract:
-				var msg shared.InteractMessage
-				if err := shared.DecodeMessage(raw, &msg); err != nil {
-					conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: "INVALID_FIELD"})
+				if err := conn.ValidateFields(raw, shared.InteractMessage{}); err != nil {
 					continue
 				}
+				var msg shared.InteractMessage
 
 				fmt.Println(
 					"interact recibido de",
@@ -131,7 +135,7 @@ func handleClient(netConn net.Conn, l *lobby) {
 			default:
 				conn.WriteMessage(shared.ErrorMessage{
 					Type:   shared.TypeError,
-					Reason: "UNKNOWN_MESSAGE",
+					Reason: shared.ErrUnknownType,
 				})
 		}
 	}

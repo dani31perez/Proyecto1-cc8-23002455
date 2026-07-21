@@ -1,4 +1,10 @@
 package shared
+ 
+import (
+	"encoding/json"
+	"reflect"
+)
+
 const (
 	TypeDiscover   = "discover"
 	TypeServerInfo = "server_info"
@@ -94,4 +100,38 @@ type GameOverMessage struct {
 type ErrorMessage struct {
 	Type   string `json:"type"`
 	Reason string `json:"reason"`
+}
+
+func (c * Conn) ValidateFields(raw []byte, v interface{}) error {
+    var fields map[string]json.RawMessage
+
+    if err := json.Unmarshal(raw, &fields); err != nil {
+        return err
+    }
+
+    t := reflect.TypeOf(v)
+
+    for i := 0; i < t.NumField(); i++ {
+        field := t.Field(i)
+
+        tag := field.Tag.Get("json")
+
+        if tag == "" || tag == "-" {
+            continue
+        }
+
+		rawField, ok := fields[tag]
+
+        if !ok {
+            return c.WriteMessage(ErrorMessage{Type: TypeError, Reason: ErrMissingField})
+        }
+
+		value := reflect.New(field.Type)
+
+		if err := json.Unmarshal(rawField, value.Interface()); err != nil {
+			return c.WriteMessage(ErrorMessage{	Type:   TypeError, Reason: ErrInvalidField})
+		}
+    }
+
+    return nil
 }
