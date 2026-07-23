@@ -102,8 +102,6 @@ func handleClient(netConn net.Conn, l *lobby) {
 			continue
 		}
 		
-		 
-
 		switch msgType {
 
 			case shared.TypeInput:
@@ -111,6 +109,11 @@ func handleClient(netConn net.Conn, l *lobby) {
 					continue
 				}
 				var msg shared.InputMessage
+
+				if err := shared.DecodeMessage(raw, &msg); err != nil {
+					fmt.Println("error al decodificar input:", err)
+					continue
+				}
 
 				fmt.Println(
 					"input recibido de",
@@ -124,6 +127,11 @@ func handleClient(netConn net.Conn, l *lobby) {
 					continue
 				}
 				var msg shared.InteractMessage
+
+				if err := shared.DecodeMessage(raw, &msg); err != nil {
+					fmt.Println("error al decodificar interact:", err)
+					continue
+				}
 
 				fmt.Println(
 					"interact recibido de",

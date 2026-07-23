@@ -19,67 +19,35 @@ type keyListener struct {
 
 func (k *keyListener) Update() error {
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
-		return ebiten.Termination
-	}
-
 	dx, dy := 0, 0
 
-	if ebiten.IsKeyPressed(ebiten.KeyW) {
+	if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp) {
 		dy = -1
 	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyS) {
+	if ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyDown) {
 		dy = 1
 	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyA) {
+	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
 		dx = -1
 	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyD) {
+	if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight) {
 		dx = 1
 	}
 
+	if inpututil.IsKeyJustPressed(ebiten.KeyE) {
+		fmt.Println("[ACCION] Enviando 'interact' al servidor")
+		k.conn.WriteMessage(shared.InteractMessage{Type: shared.TypeInteract})
+	}
 
-	// Detecta cambio de dirección
-	changed := dx != k.lastX || dy != k.lastY
-
-
-	// Limita envío a 20 veces por segundo
-	canSend := time.Since(k.lastSend) >= 50*time.Millisecond
-
-
-	if (dx != 0 || dy != 0) && canSend {
+	if dx != k.lastX || dy != k.lastY {
+		fmt.Printf("[INTENCIÓN] Cambio detectado -> Enviando: X=%d, Y=%d\n", dx, dy)
 		sendInput(k.conn, dx, dy)
 
+		k.conn.WriteMessage(shared.InputMessage{Type: shared.TypeInput,Dir: shared.Direction{X: dx,Y: dy,}})
+		
 		k.lastX = dx
 		k.lastY = dy
-		k.lastSend = time.Now()
 	}
-
-
-	// Si soltó todas las teclas manda detenerse
-	if dx == 0 && dy == 0 && (k.lastX != 0 || k.lastY != 0) {
-
-		sendInput(k.conn, 0, 0)
-
-		k.lastX = 0
-		k.lastY = 0
-		k.lastSend = time.Now()
-	}
-
-
-	// Si cambió dirección manda inmediatamente
-	if changed && (dx != 0 || dy != 0) {
-
-		sendInput(k.conn, dx, dy)
-
-		k.lastX = dx
-		k.lastY = dy
-		k.lastSend = time.Now()
-	}
-
 
 	return nil
 }
@@ -109,6 +77,5 @@ func sendInput(conn *shared.Conn, dx, dy int) error {
 			Y: dy,
 		},
 	}
-	fmt.Printf("ANTES DE ENVIAR: %+v\n", msg)
 	return conn.WriteMessage(msg)
 }

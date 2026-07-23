@@ -2,7 +2,10 @@ module Proyecto1-cc8-23002455
 
 go 1.24.0
 
-require github.com/hajimehoshi/ebiten/v2 v2.9.9
+require (
+	github.com/hajimehoshi/ebiten/v2 v2.9.9
+	golang.org/x/image v0.31.0
+)
 
 require (
 	github.com/ebitengine/gomobile v0.0.0-20250923094054-ea854a63cce1 // indirect
