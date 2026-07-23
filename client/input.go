@@ -5,20 +5,11 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"Proyecto1-cc8-23002455/shared"
-<<<<<<< HEAD
-=======
 	"time"
->>>>>>> bcf5e2f (Add controlled player input sending)
 )
 
 type keyListener struct {
 	conn *shared.Conn
-<<<<<<< HEAD
-}
-
-func (k *keyListener) Update() error {
-	// Salir con Q
-=======
 
 	lastX int
 	lastY int
@@ -28,37 +19,11 @@ func (k *keyListener) Update() error {
 
 func (k *keyListener) Update() error {
 
->>>>>>> bcf5e2f (Add controlled player input sending)
 	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
 		return ebiten.Termination
 	}
 
 	dx, dy := 0, 0
-<<<<<<< HEAD
-	pressed := false
-
-	// Evaluamos qué teclas se acaban de presionar
-	if inpututil.IsKeyJustPressed(ebiten.KeyW) {
-		dy = -1
-		pressed = true
-	} else if inpututil.IsKeyJustPressed(ebiten.KeyS) {
-		dy = 1
-		pressed = true
-	}
-
-	if inpututil.IsKeyJustPressed(ebiten.KeyA) {
-		dx = -1
-		pressed = true
-	} else if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-		dx = 1
-		pressed = true
-	}
-
-	if pressed {
-		sendInput(k.conn, dx, dy)
-	}
-
-=======
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		dy = -1
@@ -116,7 +81,6 @@ func (k *keyListener) Update() error {
 	}
 
 
->>>>>>> bcf5e2f (Add controlled player input sending)
 	return nil
 }
 
@@ -145,9 +109,6 @@ func sendInput(conn *shared.Conn, dx, dy int) error {
 			Y: dy,
 		},
 	}
-<<<<<<< HEAD
-=======
 	fmt.Printf("ANTES DE ENVIAR: %+v\n", msg)
->>>>>>> bcf5e2f (Add controlled player input sending)
 	return conn.WriteMessage(msg)
 }
