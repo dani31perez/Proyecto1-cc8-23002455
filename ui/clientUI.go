@@ -1,9 +1,10 @@
 package ui
 
 import (
+	"image/color"
+
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font/basicfont"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
 type ClientScreen struct {
@@ -55,22 +56,36 @@ func (c *ClientScreen) Update() error {
 
 func (c *ClientScreen) Draw(screen *ebiten.Image) {
 
+	op := &text.DrawOptions{}
+
+	op.GeoM.Translate(
+		500,
+		120,
+	)
+
+	op.ColorScale.ScaleWithColor(color.White)
+
 	text.Draw(
 		screen,
 		"Modo Cliente",
-		basicfont.Face7x13,
-		500,
-		120,
-		nil,
+		TitleFont,
+		op,
 	)
+
+	op2 := &text.DrawOptions{}
+
+	op2.GeoM.Translate(
+		320,
+		200,
+	)
+
+	op2.ColorScale.ScaleWithColor(color.White)
 
 	text.Draw(
 		screen,
 		"Aqui posteriormente aparecera la busqueda de servidores.",
-		basicfont.Face7x13,
-		330,
-		200,
-		nil,
+		SmallFont,
+		op2,
 	)
 
 	c.back.Draw(screen)

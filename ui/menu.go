@@ -2,8 +2,11 @@ package ui
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font/basicfont"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
+  	"image/color"
+
+	"Proyecto1-cc8-23002455/client"
+	"Proyecto1-cc8-23002455/server"
 )
 
 type Menu struct {
@@ -19,18 +22,18 @@ func NewMenu() *Menu {
 	m := &Menu{}
 
 	m.server = Button{
-		X: 520,
-		Y: 250,
-		W: 240,
-		H: 60,
+		X: 550,
+		Y: 280,
+		W: 380,
+		H: 80,
 		Text: "Servidor",
 	}
 
 	m.client = Button{
-		X: 520,
-		Y: 350,
-		W: 240,
-		H: 60,
+		X: 550,
+		Y: 400,
+		W: 380,
+		H: 80,
 		Text: "Cliente",
 	}
 
@@ -41,8 +44,9 @@ func (m *Menu) Update() error {
 
 	m.server.OnClick = func() {
 
-		screen := NewServer()
+		go server.Run()
 
+		screen := NewServer()
 		screen.manager = m.manager
 
 		m.manager.Set(screen)
@@ -50,8 +54,9 @@ func (m *Menu) Update() error {
 
 	m.client.OnClick = func() {
 
-		screen := NewClient()
+		go client.Run()
 
+		screen := NewClient()
 		screen.manager = m.manager
 
 		m.manager.Set(screen)
@@ -65,13 +70,22 @@ func (m *Menu) Update() error {
 
 func (m *Menu) Draw(screen *ebiten.Image) {
 
+	op := &text.DrawOptions{}
+
+	op.GeoM.Translate(
+		400,
+		120,
+	)
+
+	op.ColorScale.ScaleWithColor(
+		color.RGBA{255,220,50,255},
+	)
+
 	text.Draw(
 		screen,
 		"Capture The Flag",
-		basicfont.Face7x13,
-		500,
-		150,
-		nil,
+		TitleFont,
+		op,
 	)
 
 	m.server.Draw(screen)

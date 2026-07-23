@@ -1,4 +1,4 @@
-package main
+package server
 import (
 	"Proyecto1-cc8-23002455/shared"
 	"fmt"

@@ -1,11 +1,11 @@
-package main
+package server
 import (
 	"Proyecto1-cc8-23002455/shared"
 	"fmt"
 	"net"
 	"os"
 )
-func main() {
+func Run() {
 	tcpPort := 8889
 	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%d", tcpPort))
 	if err != nil {

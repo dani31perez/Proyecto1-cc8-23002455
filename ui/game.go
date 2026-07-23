@@ -3,8 +3,8 @@ package ui
 import "github.com/hajimehoshi/ebiten/v2"
 
 const (
-	ScreenWidth  = 1280
-	ScreenHeight = 720
+	ScreenWidth  = 1480
+	ScreenHeight = 900
 )
 
 type Game struct {

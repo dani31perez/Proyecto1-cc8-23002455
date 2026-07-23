@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font/basicfont"
-)
+	"image/color"
 
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
+)
 type ServerScreen struct {
 
 	manager *Manager
@@ -20,7 +20,7 @@ func NewServer() *ServerScreen {
 	s.back = Button{
 		X: 20,
 		Y: 20,
-		W: 180,
+		W: 220,
 		H: 50,
 		Text: "Regresar",
 	}
@@ -52,22 +52,40 @@ func (s *ServerScreen) Update() error {
 
 func (s *ServerScreen) Draw(screen *ebiten.Image) {
 
+	op := &text.DrawOptions{}
+
+	op.GeoM.Translate(
+		500,
+		120,
+	)
+
+	op.ColorScale.ScaleWithColor(
+		color.RGBA{80,220,80,255},
+	)
+
 	text.Draw(
 		screen,
 		"Modo Servidor",
-		basicfont.Face7x13,
-		500,
-		120,
-		nil,
+		TitleFont,
+		op,
+	)
+
+	op2 := &text.DrawOptions{}
+
+	op2.GeoM.Translate(
+		460,
+		200,
+	)
+
+	op2.ColorScale.ScaleWithColor(
+		color.RGBA{80,170,255,255},
 	)
 
 	text.Draw(
 		screen,
 		"Aqui posteriormente aparecera el lobby.",
-		basicfont.Face7x13,
-		400,
-		200,
-		nil,
+		SmallFont,
+		op2,
 	)
 
 	s.back.Draw(screen)

@@ -1,4 +1,4 @@
-package main
+package client
 import (
 	"Proyecto1-cc8-23002455/shared"
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"time"
 	"bufio"
 )
-func main() {
+func Run() {
 	server, err := discoverServer()
 	if err != nil {
 		fmt.Println("no se encontro servidor por broadcast, indique IP manualmente en el codigo")
