@@ -1,30 +1,33 @@
 package server
+
 import (
 	"Proyecto1-cc8-23002455/shared"
 	"fmt"
 	"sync"
 	"time"
 )
-type player struct {
-	id   string
-	name string
+
+type Player struct {
+	Id   string
+	Name string
 	conn *shared.Conn
 }
 type lobby struct {
 	mu       sync.Mutex
-	players  map[string]*player
+	players  map[string]*Player
 	nextID   int
 	counting bool
 }
+
 func newLobby() *lobby {
-	return &lobby{players: make(map[string]*player)}
+	return &lobby{players: make(map[string]*Player)}
 }
-func (l *lobby) addPlayer(name string, conn *shared.Conn) *player {
+func (l *lobby) addPlayer(name string, conn *shared.Conn) *Player {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.nextID++
 	id := fmt.Sprintf("p%d", l.nextID)
-	p := &player{id: id, name: name, conn: conn}
+	p := &Player{Id: id, Name: name, conn: conn}
 	l.players[id] = p
 	return p
 }
@@ -38,7 +41,7 @@ func (l *lobby) snapshot() []shared.LobbyPlayer {
 	defer l.mu.Unlock()
 	list := make([]shared.LobbyPlayer, 0, len(l.players))
 	for _, p := range l.players {
-		list = append(list, shared.LobbyPlayer{ID: p.id, Name: p.name})
+		list = append(list, shared.LobbyPlayer{ID: p.Id, Name: p.Name})
 	}
 	return list
 }
@@ -75,4 +78,16 @@ func (l *lobby) runCountdown() {
 	l.mu.Lock()
 	l.counting = false
 	l.mu.Unlock()
+}
+
+func (l *lobby) GetPlayers() []*Player {
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var players []*Player
+	for _, p := range l.players {
+		players = append(players, p)
+	}
+
+	return players
 }

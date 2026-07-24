@@ -5,24 +5,33 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+
+	"Proyecto1-cc8-23002455/client"
+	"Proyecto1-cc8-23002455/ui/assets"
+	"Proyecto1-cc8-23002455/ui/components"
 )
 
 type ClientScreen struct {
-
 	manager *Manager
 
-	back Button
+	back components.Button
+
+	cards []components.ServerCard
+
+	servers []client.DiscoveredServer
+
+	loaded bool
 }
 
 func NewClient() *ClientScreen {
 
 	c := &ClientScreen{}
 
-	c.back = Button{
-		X: 20,
-		Y: 20,
-		W: 180,
-		H: 50,
+	c.back = components.Button{
+		X:    20,
+		Y:    20,
+		W:    180,
+		H:    50,
 		Text: "Regresar",
 	}
 
@@ -30,6 +39,36 @@ func NewClient() *ClientScreen {
 }
 
 func (c *ClientScreen) Update() error {
+
+	if !c.loaded {
+		servers, err := client.DiscoverServer()
+		if err == nil {
+			c.servers = servers
+			y := 220.0
+			for _, server := range servers {
+				card := components.ServerCard{
+					X:      300,
+					Y:      y,
+					W:      900,
+					H:      90,
+					Server: server,
+					OnClick: func(s client.DiscoveredServer) {
+						go client.Run(s)
+					},
+				}
+				c.cards = append(
+					c.cards,
+					card,
+				)
+				y += 110
+			}
+		}
+		c.loaded = true
+	}
+
+	for i := range c.cards {
+		c.cards[i].Update()
+	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 
@@ -68,25 +107,13 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 	text.Draw(
 		screen,
 		"Modo Cliente",
-		TitleFont,
+		assets.TitleFont,
 		op,
 	)
 
-	op2 := &text.DrawOptions{}
-
-	op2.GeoM.Translate(
-		320,
-		200,
-	)
-
-	op2.ColorScale.ScaleWithColor(color.White)
-
-	text.Draw(
-		screen,
-		"Aqui posteriormente aparecera la busqueda de servidores.",
-		SmallFont,
-		op2,
-	)
+	for i := range c.cards {
+		c.cards[i].Draw(screen)
+	}
 
 	c.back.Draw(screen)
 }

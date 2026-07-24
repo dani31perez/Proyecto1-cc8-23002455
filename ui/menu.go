@@ -1,27 +1,29 @@
 package ui
 
 import (
+	"image/color"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
-  	"image/color"
 
-	"Proyecto1-cc8-23002455/client"
 	"Proyecto1-cc8-23002455/server"
+	"Proyecto1-cc8-23002455/ui/assets"
+	"Proyecto1-cc8-23002455/ui/components"
 )
 
 type Menu struct {
 
 	manager *Manager
 
-	server Button
-	client Button
+	server components.Button
+	client components.Button
 }
 
 func NewMenu() *Menu {
 
 	m := &Menu{}
 
-	m.server = Button{
+	m.server = components.Button{
 		X: 550,
 		Y: 280,
 		W: 380,
@@ -29,7 +31,7 @@ func NewMenu() *Menu {
 		Text: "Servidor",
 	}
 
-	m.client = Button{
+	m.client = components.Button{
 		X: 550,
 		Y: 400,
 		W: 380,
@@ -53,8 +55,6 @@ func (m *Menu) Update() error {
 	}
 
 	m.client.OnClick = func() {
-
-		go client.Run()
 
 		screen := NewClient()
 		screen.manager = m.manager
@@ -84,7 +84,7 @@ func (m *Menu) Draw(screen *ebiten.Image) {
 	text.Draw(
 		screen,
 		"Capture The Flag",
-		TitleFont,
+		assets.TitleFont,
 		op,
 	)
 

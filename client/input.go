@@ -58,17 +58,6 @@ func (k *keyListener) Layout(outsideWidth, outsideHeight int) (screenWidth, scre
 	return 200, 200
 }
 
-func startInputLoop(conn *shared.Conn) {
-	ebiten.SetWindowSize(200, 200)
-	ebiten.SetWindowTitle("Input WASD")
-	
-	game := &keyListener{conn: conn}
-
-	if err := ebiten.RunGame(game); err != nil && err != ebiten.Termination {
-		fmt.Println("error en el listener de teclas:", err)
-	}
-}
-
 func sendInput(conn *shared.Conn, dx, dy int) error {
 	msg := shared.InputMessage{
 		Type: shared.TypeInput,

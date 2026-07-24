@@ -1,10 +1,14 @@
 package server
+
 import (
 	"Proyecto1-cc8-23002455/shared"
 	"fmt"
 	"net"
 	"os"
 )
+
+var CurrentLobby *lobby
+
 func Run() {
 	tcpPort := 8889
 	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%d", tcpPort))
@@ -13,6 +17,7 @@ func Run() {
 		os.Exit(1)
 	}
 	l := newLobby()
+	CurrentLobby = l
 	go runDiscovery(tcpPort)
 	fmt.Println("servidor escuchando TCP en puerto", tcpPort)
 	for {
@@ -52,7 +57,7 @@ func runDiscovery(tcpPort int) {
 func handleClient(netConn net.Conn, l *lobby) {
 	conn := shared.NewConn(netConn)
 	defer netConn.Close()
-	var p *player
+	var p *Player
 	for p == nil {
 		raw, err := conn.ReadMessage()
 		if err != nil {
@@ -74,7 +79,7 @@ func handleClient(netConn net.Conn, l *lobby) {
 			continue
 		}
 		if join.V != 1 {
-			conn.WriteMessage(shared.ErrorMessage{ Type:   shared.TypeError, Reason: shared.ErrVersionMismatch})
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrVersionMismatch})
 			return
 		}
 		if join.Name == "" || len(join.Name) > 20 {
@@ -82,17 +87,17 @@ func handleClient(netConn net.Conn, l *lobby) {
 			continue
 		}
 		p = l.addPlayer(join.Name, conn)
-		fmt.Println("join recibido, v:", join.V, "name:", join.Name, "asignado id:", p.id)
+		fmt.Println("join recibido, v:", join.V, "name:", join.Name, "asignado id:", p.Id)
 	}
-	defer l.removePlayer(p.id)
-	welcome := shared.WelcomeMessage{Type: shared.TypeWelcome, PlayerID: p.id, Config: shared.GameConfig{MapSize: 1000, CircleRadius: 300, PlayerRadius: 15, InteractRadius: 40, Speed: 200, TickRate: 20}}
+	defer l.removePlayer(p.Id)
+	welcome := shared.WelcomeMessage{Type: shared.TypeWelcome, PlayerID: p.Id, Config: shared.GameConfig{MapSize: 1000, CircleRadius: 300, PlayerRadius: 15, InteractRadius: 40, Speed: 200, TickRate: 20}}
 	conn.WriteMessage(welcome)
 	l.broadcastLobby()
 	l.startCountdownOnce()
 	for {
 		raw, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Println("jugador desconectado:", p.id, err)
+			fmt.Println("jugador desconectado:", p.Id, err)
 			l.broadcastLobby()
 			return
 		}
@@ -101,50 +106,50 @@ func handleClient(netConn net.Conn, l *lobby) {
 			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrInvalidJSON})
 			continue
 		}
-		
+
 		switch msgType {
 
-			case shared.TypeInput:
-				if err := conn.ValidateFields(raw, shared.InputMessage{}); err != nil {
-					continue
-				}
-				var msg shared.InputMessage
+		case shared.TypeInput:
+			if err := conn.ValidateFields(raw, shared.InputMessage{}); err != nil {
+				continue
+			}
+			var msg shared.InputMessage
 
-				if err := shared.DecodeMessage(raw, &msg); err != nil {
-					fmt.Println("error al decodificar input:", err)
-					continue
-				}
+			if err := shared.DecodeMessage(raw, &msg); err != nil {
+				fmt.Println("error al decodificar input:", err)
+				continue
+			}
 
-				fmt.Println(
-					"input recibido de",
-					p.id,
-					"direccion:",
-					msg.Dir,
-				)
+			fmt.Println(
+				"input recibido de",
+				p.Id,
+				"direccion:",
+				msg.Dir,
+			)
 
-			case shared.TypeInteract:
-				if err := conn.ValidateFields(raw, shared.InteractMessage{}); err != nil {
-					continue
-				}
-				var msg shared.InteractMessage
+		case shared.TypeInteract:
+			if err := conn.ValidateFields(raw, shared.InteractMessage{}); err != nil {
+				continue
+			}
+			var msg shared.InteractMessage
 
-				if err := shared.DecodeMessage(raw, &msg); err != nil {
-					fmt.Println("error al decodificar interact:", err)
-					continue
-				}
+			if err := shared.DecodeMessage(raw, &msg); err != nil {
+				fmt.Println("error al decodificar interact:", err)
+				continue
+			}
 
-				fmt.Println(
-					"interact recibido de",
-					p.id,
-					"target:",
-					msg,
-				)
+			fmt.Println(
+				"interact recibido de",
+				p.Id,
+				"target:",
+				msg,
+			)
 
-			default:
-				conn.WriteMessage(shared.ErrorMessage{
-					Type:   shared.TypeError,
-					Reason: shared.ErrUnknownType,
-				})
+		default:
+			conn.WriteMessage(shared.ErrorMessage{
+				Type:   shared.TypeError,
+				Reason: shared.ErrUnknownType,
+			})
 		}
 	}
 }

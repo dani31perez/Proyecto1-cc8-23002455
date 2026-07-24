@@ -7,13 +7,7 @@ import (
 	"time"
 	"bufio"
 )
-func Run() {
-	server, err := discoverServer()
-	if err != nil {
-		fmt.Println("no se encontro servidor por broadcast, indique IP manualmente en el codigo")
-		os.Exit(1)
-	}
-	fmt.Println("servidor encontrado:", server.Name, "en puerto", server.TCPPort)
+func Run(server DiscoveredServer) {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", server.IP, server.TCPPort))
 	if err != nil {
 		fmt.Println("error al conectar por TCP:", err)
@@ -29,7 +23,6 @@ func Run() {
 	name := stdin.Text()
 	join := shared.JoinMessage{Type: shared.TypeJoin, V: 1, Name: name}
 	conn.WriteMessage(join)
-	startInputLoop(conn)
 	<-done
 }
 
@@ -103,11 +96,9 @@ func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
 	}
 }
 
-type discoveredServer struct {
-	shared.ServerInfoMessage
-	IP string
-}
-func discoverServer() (*discoveredServer, error) {
+
+func DiscoverServer() ([]DiscoveredServer, error) {
+	var servers []DiscoveredServer
 	localAddr := &net.UDPAddr{Port: 0}
 	udpConn, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
@@ -129,5 +120,9 @@ func discoverServer() (*discoveredServer, error) {
 	if err := shared.DecodeMessage(raw, &info); err != nil {
 		return nil, err
 	}
-	return &discoveredServer{ServerInfoMessage: info, IP: remote.IP.String()}, nil
+	servers = append(servers, DiscoveredServer{
+		ServerInfoMessage: info,
+		IP: remote.IP.String(),
+	})
+	return servers, nil
 }

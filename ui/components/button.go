@@ -1,4 +1,4 @@
-package ui
+package components
 
 import (
 	"image"
@@ -7,6 +7,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"Proyecto1-cc8-23002455/ui/assets"
 )
 
 type Button struct {
@@ -78,7 +79,7 @@ func (b *Button) Draw(screen *ebiten.Image) {
 
 	width, height := text.Measure(
 		b.Text,
-		MenuFont,
+		assets.MenuFont,
 		0,
 	)
 
@@ -92,7 +93,7 @@ func (b *Button) Draw(screen *ebiten.Image) {
 	text.Draw(
 		screen,
 		b.Text,
-		MenuFont,
+		assets.MenuFont,
 		op,
 	)
 }

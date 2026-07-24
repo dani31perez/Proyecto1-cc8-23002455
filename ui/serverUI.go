@@ -3,25 +3,29 @@ package ui
 import (
 	"image/color"
 
+	"Proyecto1-cc8-23002455/server"
+	"Proyecto1-cc8-23002455/ui/assets"
+	"Proyecto1-cc8-23002455/ui/components"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
+
 type ServerScreen struct {
-
 	manager *Manager
-
-	back Button
+	back    components.Button
+	cards   []components.PlayerCard
 }
 
 func NewServer() *ServerScreen {
 
 	s := &ServerScreen{}
 
-	s.back = Button{
-		X: 20,
-		Y: 20,
-		W: 220,
-		H: 50,
+	s.back = components.Button{
+		X:    20,
+		Y:    20,
+		W:    220,
+		H:    50,
 		Text: "Regresar",
 	}
 
@@ -29,6 +33,32 @@ func NewServer() *ServerScreen {
 }
 
 func (s *ServerScreen) Update() error {
+
+
+	if server.CurrentLobby == nil {
+		return nil
+	}
+
+	players := server.CurrentLobby.GetPlayers()
+	y := 220.0
+
+	for _, p := range players {
+
+		card := components.PlayerCard{
+			X:      (ScreenWidth - 700) / 2,
+			Y:      y,
+			W:      700,
+			H:      90,
+			Name:   p.Name + " " + p.Id,
+		}
+
+		s.cards = append(
+			s.cards,
+			card,
+		)
+
+		y += 110
+	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 		menu := NewMenu()
@@ -60,33 +90,17 @@ func (s *ServerScreen) Draw(screen *ebiten.Image) {
 	)
 
 	op.ColorScale.ScaleWithColor(
-		color.RGBA{80,220,80,255},
+		color.RGBA{80, 220, 80, 255},
 	)
 
 	text.Draw(
 		screen,
 		"Modo Servidor",
-		TitleFont,
+		assets.TitleFont,
 		op,
 	)
 
-	op2 := &text.DrawOptions{}
-
-	op2.GeoM.Translate(
-		460,
-		200,
-	)
-
-	op2.ColorScale.ScaleWithColor(
-		color.RGBA{80,170,255,255},
-	)
-
-	text.Draw(
-		screen,
-		"Aqui posteriormente aparecera el lobby.",
-		SmallFont,
-		op2,
-	)
-
-	s.back.Draw(screen)
+	for i := range s.cards {
+		s.cards[i].Draw(screen)
+	}
 }

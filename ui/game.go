@@ -1,7 +1,8 @@
 package ui
 
-import "github.com/hajimehoshi/ebiten/v2"
-
+import (
+	"github.com/hajimehoshi/ebiten/v2"
+)
 const (
 	ScreenWidth  = 1480
 	ScreenHeight = 900

@@ -3,12 +3,23 @@ import (
 	"Proyecto1-cc8-23002455/shared"
 	"sync"
 )
+type DiscoveredServer struct {
+	shared.ServerInfoMessage
+	IP string
+}
 type clientState struct {
 	mu        sync.Mutex
 	playerID  string
 	config    shared.GameConfig
 	lobby     []shared.LobbyPlayer
 	countdown int
+}
+type Client struct {
+    State *clientState
+
+    conn *shared.Conn
+
+    Servers []DiscoveredServer
 }
 func newClientState() *clientState {
 	return &clientState{}
