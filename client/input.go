@@ -8,16 +8,14 @@ import (
 	"time"
 )
 
-type keyListener struct {
-	conn *shared.Conn
-
+type KeyListener struct {
 	lastX int
 	lastY int
 
 	lastSend time.Time
 }
 
-func (k *keyListener) Update() error {
+func (k *KeyListener) Update() error {
 
 	dx, dy := 0, 0
 
@@ -36,14 +34,12 @@ func (k *keyListener) Update() error {
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyE) {
 		fmt.Println("[ACCION] Enviando 'interact' al servidor")
-		k.conn.WriteMessage(shared.InteractMessage{Type: shared.TypeInteract})
+		CurrentConn.WriteMessage(shared.InteractMessage{Type: shared.TypeInteract})
 	}
 
 	if dx != k.lastX || dy != k.lastY {
 		fmt.Printf("[INTENCIÓN] Cambio detectado -> Enviando: X=%d, Y=%d\n", dx, dy)
-		sendInput(k.conn, dx, dy)
-
-		k.conn.WriteMessage(shared.InputMessage{Type: shared.TypeInput,Dir: shared.Direction{X: dx,Y: dy,}})
+		sendInput(CurrentConn, dx, dy)
 		
 		k.lastX = dx
 		k.lastY = dy
@@ -52,9 +48,9 @@ func (k *keyListener) Update() error {
 	return nil
 }
 
-func (k *keyListener) Draw(screen *ebiten.Image) {}
+func (k *KeyListener) Draw(screen *ebiten.Image) {}
 
-func (k *keyListener) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+func (k *KeyListener) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return 200, 200
 }
 

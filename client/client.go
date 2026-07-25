@@ -7,6 +7,8 @@ import (
 	"time"
 	"bufio"
 )
+
+var CurrentConn *shared.Conn
 func Run(server DiscoveredServer) {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", server.IP, server.TCPPort))
 	if err != nil {
@@ -14,6 +16,7 @@ func Run(server DiscoveredServer) {
 		os.Exit(1)
 	}
 	conn := shared.NewConn(tcpConn)
+	CurrentConn = conn
 	state := newClientState()
 	done := make(chan struct{})
 	go readLoop(conn, state, done)

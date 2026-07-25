@@ -20,12 +20,41 @@ type ClientScreen struct {
 
 	servers []client.DiscoveredServer
 
+	input client.KeyListener
+
 	loaded bool
+
+	ipBox      components.TextBox
+    portBox    components.TextBox
+    connectBtn components.Button
 }
 
 func NewClient() *ClientScreen {
 
 	c := &ClientScreen{}
+
+	c.ipBox = components.TextBox{
+		X:    300,
+		Y:    230,
+		W:    320,
+		H:    40,
+	}
+
+	c.portBox = components.TextBox{
+		X:    640,
+		Y:    230,
+		W:    100,
+		H:    40,
+		Text: "8889",
+	}
+
+	c.connectBtn = components.Button{
+		X:    760,
+		Y:    230,
+		W:    170,
+		H:    40,
+		Text: "Conectar",
+	}
 
 	c.back = components.Button{
 		X:    20,
@@ -44,7 +73,7 @@ func (c *ClientScreen) Update() error {
 		servers, err := client.DiscoverServer()
 		if err == nil {
 			c.servers = servers
-			y := 220.0
+			y := 340.0
 			for _, server := range servers {
 				card := components.ServerCard{
 					X:      300,
@@ -70,6 +99,22 @@ func (c *ClientScreen) Update() error {
 		c.cards[i].Update()
 	}
 
+	c.ipBox.Update()
+	c.portBox.Update()
+
+	c.connectBtn.OnClick = func() {
+		server := client.DiscoveredServer{
+			IP: c.ipBox.Text,
+		}
+
+		server.TCPPort = 8889
+
+		go client.Run(server)
+	}
+
+	c.connectBtn.Update()
+
+	c.input.Update()
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 
 		menu := NewMenu()
@@ -109,6 +154,32 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 		"Modo Cliente",
 		assets.TitleFont,
 		op,
+	)
+
+	op2 := &text.DrawOptions{}
+	op2.GeoM.Translate(300, 170)
+	op2.ColorScale.ScaleWithColor(color.White)
+
+	text.Draw(
+		screen,
+		"Conexion manual",
+		assets.TitleFont,
+		op2,
+	)
+
+	c.ipBox.Draw(screen)
+	c.portBox.Draw(screen)
+	c.connectBtn.Draw(screen)
+
+	op3 := &text.DrawOptions{}
+	op3.GeoM.Translate(300, 290)
+	op3.ColorScale.ScaleWithColor(color.White)
+
+	text.Draw(
+		screen,
+		"Servidores encontrados",
+		assets.TitleFont,
+		op3,
 	)
 
 	for i := range c.cards {
