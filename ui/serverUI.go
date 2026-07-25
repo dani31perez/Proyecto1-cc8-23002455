@@ -16,6 +16,8 @@ type ServerScreen struct {
 	manager *Manager
 	back    components.Button
 	cards   []components.PlayerCard
+	startBtn components.Button
+	scroll  float64
 }
 
 func NewServer() *ServerScreen {
@@ -30,12 +32,35 @@ func NewServer() *ServerScreen {
 		Text: "Regresar",
 	}
 
+	s.startBtn = components.Button{
+		X:    ScreenWidth - 260,
+		Y:    120,
+		W:    220,
+		H:    60,
+		Text: "Iniciar",
+	}
+
 	return s
 }
 
 func (s *ServerScreen) Update() error {
 
+	_, wheelY := ebiten.Wheel()
 
+	s.scroll -= wheelY * 40
+
+	if s.scroll < 0 {
+		s.scroll = 0
+	}
+
+	maxScroll := float64(len(s.cards))*110 - 350
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+
+	if s.scroll > maxScroll {
+		s.scroll = maxScroll
+	}
 	if server.CurrentLobby == nil {
 		return nil
 	}
@@ -68,6 +93,12 @@ func (s *ServerScreen) Update() error {
 
 		y += 110
 	}
+
+	s.startBtn.OnClick = func() {
+		server.CurrentLobby.StartCountdown()
+	}
+
+	s.startBtn.Update()
 
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 		menu := NewMenu()
@@ -109,19 +140,34 @@ func (s *ServerScreen) Draw(screen *ebiten.Image) {
 		op,
 	)
 
+	s.startBtn.Draw(screen)
+
 	for i := range s.cards {
-		s.cards[i].Draw(screen)
+
+		card := s.cards[i]
+
+		card.Y -= s.scroll
+
+		if card.Y+card.H < 220 {
+			continue
+		}
+
+		if card.Y > ScreenHeight-80 {
+			continue
+		}
+
+		card.Draw(screen)
 	}
 
 	if server.CurrentLobby != nil {
 		if seconds := server.CurrentLobby.CurrentCountdown(); seconds > 0 {
 			op2 := &text.DrawOptions{}
-			op2.GeoM.Translate(500, 180)
+			op2.GeoM.Translate(500, ScreenHeight-90)
 			op2.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
 			text.Draw(screen, "la partida inicia en...", assets.MenuFont, op2)
 
 			op3 := &text.DrawOptions{}
-			op3.GeoM.Translate(500, 210)
+			op3.GeoM.Translate(500, ScreenHeight-60)
 			op3.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
 			text.Draw(screen, strconv.Itoa(seconds), assets.TitleFont, op3)
 		}

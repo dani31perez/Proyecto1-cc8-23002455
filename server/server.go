@@ -58,6 +58,7 @@ func handleClient(netConn net.Conn, l *lobby) {
 	conn := shared.NewConn(netConn)
 	defer netConn.Close()
 	var p *Player
+	var isNew bool
 	for p == nil {
 		raw, err := conn.ReadMessage()
 		if err != nil {
@@ -88,21 +89,25 @@ func handleClient(netConn net.Conn, l *lobby) {
 		}
 		if l.IsPlaying() || l.IsFinished() {
 			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrInvalidPhase})
-			continue
+			return
 		}
-		p = l.addPlayer(join.Name, conn)
+		
+		clientIP, _, _ := net.SplitHostPort(netConn.RemoteAddr().String())
+		p, isNew = l.addPlayer(join.Name, conn, clientIP)
+		if(!isNew){
+			return
+		}
 		fmt.Println("join recibido, v:", join.V, "name:", join.Name, "asignado id:", p.Id)
 	}
 	defer l.removePlayer(p.Id)
 	welcome := shared.WelcomeMessage{Type: shared.TypeWelcome, PlayerID: p.Id, Config: shared.DefaultGameConfig}
 	conn.WriteMessage(welcome)
-	l.broadcastLobby()
-	l.startCountdownOnce()
+	l.BroadcastLobby()
 	for {
 		raw, err := conn.ReadMessage()
 		if err != nil {
 			fmt.Println("jugador desconectado:", p.Id, err)
-			l.broadcastLobby()
+			l.BroadcastLobby()
 			return
 		}
 		msgType, err := shared.PeekType(raw)

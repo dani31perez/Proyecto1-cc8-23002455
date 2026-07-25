@@ -3,13 +3,11 @@ import (
 	"Proyecto1-cc8-23002455/shared"
 	"fmt"
 	"net"
-	"os"
 	"time"
-	"bufio"
 )
 
 var CurrentConn *shared.Conn
-func Run(server DiscoveredServer) {
+func Run(server DiscoveredServer, name string) {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", server.IP, server.TCPPort))
 	if err != nil {
 		fmt.Println("error al conectar por TCP:", err)
@@ -21,10 +19,6 @@ func Run(server DiscoveredServer) {
 	CurrentState = state
 	done := make(chan struct{})
 	go readLoop(conn, state, done)
-	stdin := bufio.NewScanner(os.Stdin)
-	fmt.Print("ingresa tu nombre: ")
-	stdin.Scan()
-	name := stdin.Text()
 	join := shared.JoinMessage{Type: shared.TypeJoin, V: 1, Name: name}
 	conn.WriteMessage(join)
 	<-done
@@ -104,7 +98,6 @@ func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
 
 
 func DiscoverServer() ([]DiscoveredServer, error) {
-	var servers []DiscoveredServer
 	localAddr := &net.UDPAddr{Port: 0}
 	udpConn, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
@@ -118,17 +111,27 @@ func DiscoverServer() ([]DiscoveredServer, error) {
 		return nil, err
 	}
 	udpConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	raw, remote, err := shared.ReadUDP(udpConn)
-	if err != nil {
-		return nil, err
+
+	found := make(map[string]DiscoveredServer)
+	for {
+		raw, remote, err := shared.ReadUDP(udpConn)
+		if err != nil {
+			break
+		}
+		var info shared.ServerInfoMessage
+		if err := shared.DecodeMessage(raw, &info); err != nil {
+			continue
+		}
+		key := fmt.Sprintf("%s:%d", remote.IP.String(), info.TCPPort)
+		found[key] = DiscoveredServer{
+			ServerInfoMessage: info,
+			IP:                remote.IP.String(),
+		}
 	}
-	var info shared.ServerInfoMessage
-	if err := shared.DecodeMessage(raw, &info); err != nil {
-		return nil, err
+
+	servers := make([]DiscoveredServer, 0, len(found))
+	for _, s := range found {
+		servers = append(servers, s)
 	}
-	servers = append(servers, DiscoveredServer{
-		ServerInfoMessage: info,
-		IP: remote.IP.String(),
-	})
 	return servers, nil
 }

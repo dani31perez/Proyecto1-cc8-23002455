@@ -23,36 +23,54 @@ type ClientScreen struct {
 
 	loaded bool
 
+	nameBox    components.TextBox
 	ipBox      components.TextBox
-    portBox    components.TextBox
-    connectBtn components.Button
+	portBox    components.TextBox
+	connectBtn components.Button
+	reloadBtn  components.Button
+	scroll	   float64
 }
 
 func NewClient() *ClientScreen {
 
 	c := &ClientScreen{}
 
+	c.nameBox = components.TextBox{
+		X: 300,
+		Y: 230,
+		W: 400,
+		H: 40,
+	}
+
 	c.ipBox = components.TextBox{
 		X:    300,
-		Y:    230,
-		W:    320,
+		Y:    330,
+		W:    400,
 		H:    40,
 	}
 
 	c.portBox = components.TextBox{
-		X:    640,
-		Y:    230,
+		X:    720,
+		Y:    330,
 		W:    100,
 		H:    40,
 		Text: "8889",
 	}
 
 	c.connectBtn = components.Button{
-		X:    760,
-		Y:    230,
-		W:    170,
-		H:    40,
+		X:    840,
+		Y:    330,
+		W:    200,
+		H:    50,
 		Text: "Conectar",
+	}
+
+	c.reloadBtn = components.Button{
+		X:    820,
+		Y:    420,
+		W:    500,
+		H:    50,
+		Text: "Recargar servidores",
 	}
 
 	c.back = components.Button{
@@ -66,8 +84,58 @@ func NewClient() *ClientScreen {
 	return c
 }
 
+func (c *ClientScreen) playerName() string {
+	if c.nameBox.Text == "" {
+		return "Jugador"
+	}
+	return c.nameBox.Text
+}
+
+func (c *ClientScreen) refreshServers() {
+	c.cards = nil
+	servers, err := client.DiscoverServer()
+	if err != nil {
+		return
+	}
+	c.servers = servers
+	y := 500.0
+	for _, srv := range servers {
+		card := components.ServerCard{
+			X:      300,
+			Y:      y,
+			W:      900,
+			H:      90,
+			Server: srv,
+			OnClick: func(s client.DiscoveredServer) {
+				go client.Run(s, c.playerName())
+			},
+		}
+		c.cards = append(
+			c.cards,
+			card,
+		)
+		y += 110
+	}
+}
+
 func (c *ClientScreen) Update() error {
 
+	_, wheelY := ebiten.Wheel()
+
+	c.scroll -= wheelY * 40
+
+	if c.scroll < 0 {
+		c.scroll = 0
+	}
+
+	maxScroll := float64(len(c.cards))*110 - 250
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+
+	if c.scroll > maxScroll {
+		c.scroll = maxScroll
+	}
 	if client.CurrentState != nil && client.CurrentState.Started() {
 		play := NewPlay("client")
 		play.manager = c.manager
@@ -76,28 +144,7 @@ func (c *ClientScreen) Update() error {
 	}
 
 	if !c.loaded {
-		servers, err := client.DiscoverServer()
-		if err == nil {
-			c.servers = servers
-			y := 340.0
-			for _, server := range servers {
-				card := components.ServerCard{
-					X:      300,
-					Y:      y,
-					W:      900,
-					H:      90,
-					Server: server,
-					OnClick: func(s client.DiscoveredServer) {
-						go client.Run(s)
-					},
-				}
-				c.cards = append(
-					c.cards,
-					card,
-				)
-				y += 110
-			}
-		}
+		c.refreshServers()
 		c.loaded = true
 	}
 
@@ -105,6 +152,7 @@ func (c *ClientScreen) Update() error {
 		c.cards[i].Update()
 	}
 
+	c.nameBox.Update()
 	c.ipBox.Update()
 	c.portBox.Update()
 
@@ -115,10 +163,16 @@ func (c *ClientScreen) Update() error {
 
 		server.TCPPort = 8889
 
-		go client.Run(server)
+		go client.Run(server, c.playerName())
 	}
 
 	c.connectBtn.Update()
+
+	c.reloadBtn.OnClick = func() {
+		c.refreshServers()
+	}
+
+	c.reloadBtn.Update()
 
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 
@@ -152,7 +206,9 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 		120,
 	)
 
-	op.ColorScale.ScaleWithColor(color.White)
+	op.ColorScale.ScaleWithColor(
+		color.RGBA{80, 220, 80, 255},
+	)
 
 	text.Draw(
 		screen,
@@ -161,14 +217,27 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 		op,
 	)
 
+	opn := &text.DrawOptions{}
+	opn.GeoM.Translate(300, 200)
+	opn.ColorScale.ScaleWithColor(color.White)
+
+	text.Draw(
+		screen,
+		"Tu nombre",
+		assets.MenuFont,
+		opn,
+	)
+
+	c.nameBox.Draw(screen)
+
 	op2 := &text.DrawOptions{}
-	op2.GeoM.Translate(300, 170)
+	op2.GeoM.Translate(300, 300)
 	op2.ColorScale.ScaleWithColor(color.White)
 
 	text.Draw(
 		screen,
 		"Conexion manual",
-		assets.TitleFont,
+		assets.MenuFont,
 		op2,
 	)
 
@@ -177,32 +246,47 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 	c.connectBtn.Draw(screen)
 
 	op3 := &text.DrawOptions{}
-	op3.GeoM.Translate(300, 290)
+	op3.GeoM.Translate(300, 440)
 	op3.ColorScale.ScaleWithColor(color.White)
 
 	text.Draw(
 		screen,
 		"Servidores encontrados",
-		assets.TitleFont,
+		assets.MenuFont,
 		op3,
 	)
 
+	c.reloadBtn.Draw(screen)
+
 	for i := range c.cards {
-		c.cards[i].Draw(screen)
+
+		card := c.cards[i]
+
+		card.Y -= c.scroll
+
+		if card.Y+card.H < 490 {
+			continue
+		}
+
+		if card.Y > ScreenHeight-80 {
+			continue
+		}
+
+		card.Draw(screen)
 	}
 
 	c.back.Draw(screen)
 
 	if client.CurrentState != nil {
 		op4 := &text.DrawOptions{}
-		op4.GeoM.Translate(300, 620)
+		op4.GeoM.Translate(150, ScreenHeight-100)
 		op4.ColorScale.ScaleWithColor(color.RGBA{120, 230, 140, 255})
 		text.Draw(screen, "Conectado, esperando a que el servidor inicie la partida", assets.MenuFont, op4)
 
-		y := 660.0
+		y := float64(ScreenHeight - 70)
 		for _, lp := range client.CurrentState.LobbyPlayers() {
 			opp := &text.DrawOptions{}
-			opp.GeoM.Translate(300, y)
+			opp.GeoM.Translate(150, y)
 			opp.ColorScale.ScaleWithColor(color.White)
 			text.Draw(screen, lp.Name+"  ("+lp.ID+")", assets.SmallFont, opp)
 			y += 24
@@ -210,7 +294,7 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 
 		if seconds := client.CurrentState.Countdown(); seconds > 0 {
 			opc := &text.DrawOptions{}
-			opc.GeoM.Translate(300, y+20)
+			opc.GeoM.Translate(150, y)
 			opc.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
 			text.Draw(screen, "inicia en "+strconv.Itoa(seconds)+"...", assets.MenuFont, opc)
 		}

@@ -89,3 +89,16 @@ func (s *clientState) Winner() string {
 	defer s.mu.Unlock()
 	return s.winner
 }
+func (s *clientState) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.playerID = ""
+	s.config = shared.GameConfig{}
+	s.lobby = nil
+	s.countdown = 0
+	s.started = false
+	s.flag = shared.FlagState{}
+	s.players = nil
+	s.winner = ""
+}

@@ -1,4 +1,5 @@
 package server
+
 import (
 	"Proyecto1-cc8-23002455/shared"
 	"fmt"
@@ -7,9 +8,11 @@ import (
 	"sync"
 	"time"
 )
+
 type Player struct {
 	Id   string
 	Name string
+	Ip string
 	conn *shared.Conn
 	X    float64
 	Y    float64
@@ -29,17 +32,24 @@ type lobby struct {
 	flagX     float64
 	flagY     float64
 }
+
 func newLobby() *lobby {
 	return &lobby{players: make(map[string]*Player)}
 }
-func (l *lobby) addPlayer(name string, conn *shared.Conn) *Player {
+func (l *lobby) addPlayer(name string, conn *shared.Conn, ip string) (*Player, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	for _, player := range l.players {
+		if player.Ip == ip {
+			fmt.Println("jugador ya existe con IP:", ip)
+			return player, false
+		}
+	}
 	l.nextID++
 	id := fmt.Sprintf("p%d", l.nextID)
-	p := &Player{Id: id, Name: name, conn: conn}
+	p := &Player{Id: id, Name: name, conn: conn, Ip: ip}
 	l.players[id] = p
-	return p
+	return p, true
 }
 func (l *lobby) removePlayer(id string) {
 	l.mu.Lock()
@@ -67,7 +77,7 @@ func (l *lobby) broadcastLocked(v interface{}) {
 		p.conn.WriteMessage(v)
 	}
 }
-func (l *lobby) broadcastLobby() {
+func (l *lobby) BroadcastLobby() {
 	msg := shared.LobbyMessage{Type: shared.TypeLobby, Players: l.snapshot()}
 	l.broadcast(msg)
 }
@@ -96,7 +106,7 @@ func (l *lobby) FlagState() shared.FlagState {
 	defer l.mu.Unlock()
 	return shared.FlagState{Owner: l.flagOwner, X: l.flagX, Y: l.flagY}
 }
-func (l *lobby) startCountdownOnce() {
+func (l *lobby) StartCountdown() {
 	l.mu.Lock()
 	if l.counting || l.playing || l.finished {
 		l.mu.Unlock()
@@ -273,4 +283,24 @@ func (l *lobby) GetPlayers() []*Player {
 		players = append(players, p)
 	}
 	return players
+}
+func (l *lobby) ResetLobby() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.playing = false
+	l.finished = false
+	l.counting = false
+	l.countdown = 0
+
+	l.winner = ""
+
+	l.flagOwner = nil
+	l.flagX = 0
+	l.flagY = 0
+
+	for _, p := range l.players {
+		p.DirX = 0
+		p.DirY = 0
+	}
 }

@@ -10,6 +10,8 @@ import (
 	"Proyecto1-cc8-23002455/server"
 	"Proyecto1-cc8-23002455/shared"
 	"Proyecto1-cc8-23002455/ui/assets"
+	"Proyecto1-cc8-23002455/ui/components"
+
 )
 const mapAreaSize = 760.0
 type PlayScreen struct {
@@ -17,9 +19,23 @@ type PlayScreen struct {
 	role    string
 	input   client.KeyListener
 	names   map[string]string
+	backLobby components.Button
 }
 func NewPlay(role string) *PlayScreen {
-	return &PlayScreen{role: role, names: make(map[string]string)}
+	p := &PlayScreen{
+		role: role,
+		names: make(map[string]string),
+	}
+
+	p.backLobby = components.Button{
+		X: ScreenWidth/2 - 130,
+		Y: ScreenHeight - 80,
+		W: 350,
+		H: 50,
+		Text: "Volver al lobby",
+	}
+
+	return p
 }
 func (p *PlayScreen) mapOrigin() (float64, float64) {
 	x := (ScreenWidth - mapAreaSize) / 2
@@ -39,9 +55,36 @@ func (p *PlayScreen) Update() error {
 		}
 	}
 	if p.role == "server" && server.CurrentLobby != nil {
+		if server.CurrentLobby.IsFinished() {
+			p.backLobby.OnClick = func() {
+				server.CurrentLobby.ResetLobby()
+				server.CurrentLobby.BroadcastLobby()
+				serverScreen := NewServer()
+				serverScreen.manager = p.manager
+				p.manager.Set(serverScreen)
+			}
+		p.backLobby.Update()
+		}
 		for _, sp := range server.CurrentLobby.GetPlayers() {
 			p.names[sp.Id] = sp.Name
 		}
+	}
+
+	if p.role == "client" &&
+		client.CurrentState != nil &&
+		client.CurrentState.Winner() != "" {
+
+		p.backLobby.OnClick = func() {
+
+			client.CurrentState.Reset()
+
+			clientScreen := NewClient()
+			clientScreen.manager = p.manager
+
+			p.manager.Set(clientScreen)
+		}
+
+		p.backLobby.Update()
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 		menu := NewMenu()
@@ -59,9 +102,9 @@ func (p *PlayScreen) drawTitle(screen *ebiten.Image, title string, clr color.Col
 func (p *PlayScreen) drawPlayer(screen *ebiten.Image, id, name string, x, y float64, clr color.Color) {
 	scale := mapAreaSize / float64(shared.DefaultGameConfig.MapSize)
 	sx, sy := p.toScreen(x, y)
-	radius := float32(shared.DefaultGameConfig.PlayerRadius) * float32(scale)
-	if radius < 6 {
-		radius = 6
+	radius := float32(shared.DefaultGameConfig.PlayerRadius) * float32(scale) * 1.8
+	if radius < 10 {
+		radius = 10
 	}
 	vector.FillCircle(screen, float32(sx), float32(sy), radius, clr, true)
 	width, _ := text.Measure(name, assets.SmallFont, 0)
@@ -70,12 +113,20 @@ func (p *PlayScreen) drawPlayer(screen *ebiten.Image, id, name string, x, y floa
 	op.ColorScale.ScaleWithColor(color.White)
 	text.Draw(screen, name, assets.SmallFont, op)
 }
-func (p *PlayScreen) drawFlag(screen *ebiten.Image, x, y float64) {
+func (p *PlayScreen) drawFlag(screen *ebiten.Image, x, y float64, held bool) {
 	scale := mapAreaSize / float64(shared.DefaultGameConfig.MapSize)
 	sx, sy := p.toScreen(x, y)
-	radius := float32(shared.DefaultGameConfig.PlayerRadius) * float32(scale) * 0.8
-	if radius < 5 {
-		radius = 5
+	var radius float32
+	if held {
+		radius = float32(shared.DefaultGameConfig.PlayerRadius) * float32(scale) * 0.7
+		if radius < 5 {
+			radius = 5
+		}
+	} else {
+		radius = float32(shared.DefaultGameConfig.PlayerRadius) * float32(scale) * 0.9
+		if radius < 6 {
+			radius = 6
+		}
 	}
 	vector.FillCircle(screen, float32(sx), float32(sy), radius, color.RGBA{230, 170, 30, 255}, true)
 }
@@ -100,10 +151,10 @@ func (p *PlayScreen) Draw(screen *ebiten.Image) {
 			return
 		}
 		flag := server.CurrentLobby.FlagState()
-		p.drawFlag(screen, flag.X, flag.Y)
 		for _, sp := range server.CurrentLobby.GetPlayers() {
 			p.drawPlayer(screen, sp.Id, sp.Name, sp.X, sp.Y, color.RGBA{80, 180, 255, 255})
 		}
+		p.drawFlag(screen, flag.X, flag.Y, flag.Owner != nil)
 		if server.CurrentLobby.IsFinished() {
 			winnerID := server.CurrentLobby.Winner()
 			label := winnerID
@@ -111,6 +162,7 @@ func (p *PlayScreen) Draw(screen *ebiten.Image) {
 				label = name
 			}
 			p.drawWinner(screen, label)
+			p.backLobby.Draw(screen)
 		}
 		return
 	}
@@ -120,7 +172,6 @@ func (p *PlayScreen) Draw(screen *ebiten.Image) {
 	}
 	myID := client.CurrentState.PlayerID()
 	flag, players := client.CurrentState.GameState()
-	p.drawFlag(screen, flag.X, flag.Y)
 	for _, ps := range players {
 		clr := color.RGBA{80, 180, 255, 255}
 		if ps.ID == myID {
@@ -132,12 +183,14 @@ func (p *PlayScreen) Draw(screen *ebiten.Image) {
 		}
 		p.drawPlayer(screen, ps.ID, name, ps.X, ps.Y, clr)
 	}
+	p.drawFlag(screen, flag.X, flag.Y, flag.Owner != nil)
 	if winner := client.CurrentState.Winner(); winner != "" {
 		label := winner
 		if name, ok := p.names[winner]; ok {
 			label = name
 		}
 		p.drawWinner(screen, label)
+		p.backLobby.Draw(screen)
 	}
 	instructions := "WASD/flechas mueven, E toma o roba la bandera"
 	op := &text.DrawOptions{}

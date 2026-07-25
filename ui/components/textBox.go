@@ -84,7 +84,7 @@ func (t *TextBox) Draw(screen *ebiten.Image) {
 	}
 
 	op := &text.DrawOptions{}
-	op.GeoM.Translate(t.X+10, t.Y+10)
+	op.GeoM.Translate(t.X+10, t.Y+13)
 
 	text.Draw(
 		screen,
