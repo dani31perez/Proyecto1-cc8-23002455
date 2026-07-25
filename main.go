@@ -10,6 +10,7 @@ import (
 func main() {
 	ebiten.SetWindowSize(ui.ScreenWidth, ui.ScreenHeight)
 	ebiten.SetWindowTitle("Capture The Flag")
+	ebiten.SetRunnableOnUnfocused(true)
 
 	assets.LoadFonts()
 	game := ui.NewGame()

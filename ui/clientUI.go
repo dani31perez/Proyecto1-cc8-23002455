@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -19,8 +20,6 @@ type ClientScreen struct {
 	cards []components.ServerCard
 
 	servers []client.DiscoveredServer
-
-	input client.KeyListener
 
 	loaded bool
 
@@ -69,6 +68,13 @@ func NewClient() *ClientScreen {
 
 func (c *ClientScreen) Update() error {
 
+	if client.CurrentState != nil && client.CurrentState.Started() {
+		play := NewPlay("client")
+		play.manager = c.manager
+		c.manager.Set(play)
+		return nil
+	}
+
 	if !c.loaded {
 		servers, err := client.DiscoverServer()
 		if err == nil {
@@ -114,7 +120,6 @@ func (c *ClientScreen) Update() error {
 
 	c.connectBtn.Update()
 
-	c.input.Update()
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 
 		menu := NewMenu()
@@ -187,4 +192,27 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 	}
 
 	c.back.Draw(screen)
+
+	if client.CurrentState != nil {
+		op4 := &text.DrawOptions{}
+		op4.GeoM.Translate(300, 620)
+		op4.ColorScale.ScaleWithColor(color.RGBA{120, 230, 140, 255})
+		text.Draw(screen, "Conectado, esperando a que el servidor inicie la partida", assets.MenuFont, op4)
+
+		y := 660.0
+		for _, lp := range client.CurrentState.LobbyPlayers() {
+			opp := &text.DrawOptions{}
+			opp.GeoM.Translate(300, y)
+			opp.ColorScale.ScaleWithColor(color.White)
+			text.Draw(screen, lp.Name+"  ("+lp.ID+")", assets.SmallFont, opp)
+			y += 24
+		}
+
+		if seconds := client.CurrentState.Countdown(); seconds > 0 {
+			opc := &text.DrawOptions{}
+			opc.GeoM.Translate(300, y+20)
+			opc.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
+			text.Draw(screen, "inicia en "+strconv.Itoa(seconds)+"...", assets.MenuFont, opc)
+		}
+	}
 }

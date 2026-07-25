@@ -13,11 +13,12 @@ func Run(server DiscoveredServer) {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", server.IP, server.TCPPort))
 	if err != nil {
 		fmt.Println("error al conectar por TCP:", err)
-		os.Exit(1)
+		return
 	}
 	conn := shared.NewConn(tcpConn)
 	CurrentConn = conn
 	state := newClientState()
+	CurrentState = state
 	done := make(chan struct{})
 	go readLoop(conn, state, done)
 	stdin := bufio.NewScanner(os.Stdin)
@@ -68,6 +69,7 @@ func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
 			state.setCountdown(msg.Seconds)
 			fmt.Println("countdown recibido, segundos:", msg.Seconds)
 		case shared.TypeStart:
+			state.setStarted()
 			fmt.Println("start recibido, termina la simulacion de espera en el lobby")
 		case shared.TypeState:
 			var msg shared.StateMessage
@@ -76,7 +78,7 @@ func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
 				continue
 			}
 
-			fmt.Println("state recibido:", msg)
+			state.setGameState(msg.Flag, msg.Players)
 
 		case shared.TypeGameOver:
 			var msg shared.GameOverMessage
@@ -85,6 +87,7 @@ func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
 				continue
 			}
 
+			state.setGameOver(msg.Winner)
 			fmt.Println("game over recibido. ganador:", msg.Winner)			
 		case shared.TypeError:
 			var msg shared.ErrorMessage

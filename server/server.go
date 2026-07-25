@@ -86,11 +86,15 @@ func handleClient(netConn net.Conn, l *lobby) {
 			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrNameInvalid})
 			continue
 		}
+		if l.IsPlaying() || l.IsFinished() {
+			conn.WriteMessage(shared.ErrorMessage{Type: shared.TypeError, Reason: shared.ErrInvalidPhase})
+			continue
+		}
 		p = l.addPlayer(join.Name, conn)
 		fmt.Println("join recibido, v:", join.V, "name:", join.Name, "asignado id:", p.Id)
 	}
 	defer l.removePlayer(p.Id)
-	welcome := shared.WelcomeMessage{Type: shared.TypeWelcome, PlayerID: p.Id, Config: shared.GameConfig{MapSize: 1000, CircleRadius: 300, PlayerRadius: 15, InteractRadius: 40, Speed: 200, TickRate: 20}}
+	welcome := shared.WelcomeMessage{Type: shared.TypeWelcome, PlayerID: p.Id, Config: shared.DefaultGameConfig}
 	conn.WriteMessage(welcome)
 	l.broadcastLobby()
 	l.startCountdownOnce()
@@ -127,6 +131,8 @@ func handleClient(netConn net.Conn, l *lobby) {
 				msg.Dir,
 			)
 
+			l.setPlayerDir(p.Id, msg.Dir.X, msg.Dir.Y)
+
 		case shared.TypeInteract:
 			if err := conn.ValidateFields(raw, shared.InteractMessage{}); err != nil {
 				continue
@@ -144,6 +150,8 @@ func handleClient(netConn net.Conn, l *lobby) {
 				"target:",
 				msg,
 			)
+
+			l.interact(p.Id)
 
 		default:
 			conn.WriteMessage(shared.ErrorMessage{

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"strconv"
 
 	"Proyecto1-cc8-23002455/server"
 	"Proyecto1-cc8-23002455/ui/assets"
@@ -39,6 +40,14 @@ func (s *ServerScreen) Update() error {
 		return nil
 	}
 
+	if server.CurrentLobby.IsPlaying() {
+		play := NewPlay("server")
+		play.manager = s.manager
+		s.manager.Set(play)
+		return nil
+	}
+
+	s.cards = nil
 	players := server.CurrentLobby.GetPlayers()
 	y := 220.0
 
@@ -102,5 +111,19 @@ func (s *ServerScreen) Draw(screen *ebiten.Image) {
 
 	for i := range s.cards {
 		s.cards[i].Draw(screen)
+	}
+
+	if server.CurrentLobby != nil {
+		if seconds := server.CurrentLobby.CurrentCountdown(); seconds > 0 {
+			op2 := &text.DrawOptions{}
+			op2.GeoM.Translate(500, 180)
+			op2.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
+			text.Draw(screen, "la partida inicia en...", assets.MenuFont, op2)
+
+			op3 := &text.DrawOptions{}
+			op3.GeoM.Translate(500, 210)
+			op3.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
+			text.Draw(screen, strconv.Itoa(seconds), assets.TitleFont, op3)
+		}
 	}
 }

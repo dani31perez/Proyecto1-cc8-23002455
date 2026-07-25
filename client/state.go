@@ -13,14 +13,12 @@ type clientState struct {
 	config    shared.GameConfig
 	lobby     []shared.LobbyPlayer
 	countdown int
+	started   bool
+	flag      shared.FlagState
+	players   []shared.PlayerState
+	winner    string
 }
-type Client struct {
-    State *clientState
-
-    conn *shared.Conn
-
-    Servers []DiscoveredServer
-}
+var CurrentState *clientState
 func newClientState() *clientState {
 	return &clientState{}
 }
@@ -39,4 +37,55 @@ func (s *clientState) setCountdown(seconds int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.countdown = seconds
+}
+func (s *clientState) setStarted() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.started = true
+}
+func (s *clientState) setGameState(flag shared.FlagState, players []shared.PlayerState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.flag = flag
+	s.players = players
+}
+func (s *clientState) setGameOver(winner string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.winner = winner
+}
+func (s *clientState) PlayerID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.playerID
+}
+func (s *clientState) Config() shared.GameConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.config
+}
+func (s *clientState) LobbyPlayers() []shared.LobbyPlayer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lobby
+}
+func (s *clientState) Countdown() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.countdown
+}
+func (s *clientState) Started() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.started
+}
+func (s *clientState) GameState() (shared.FlagState, []shared.PlayerState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.flag, s.players
+}
+func (s *clientState) Winner() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.winner
 }

@@ -19,6 +19,14 @@ const (
 	TypeGameOver   = "game_over"
 	TypeError      = "error"
 )
+var DefaultGameConfig = GameConfig{
+	MapSize:        1000,
+	CircleRadius:   300,
+	PlayerRadius:   15,
+	InteractRadius: 40,
+	Speed:          200,
+	TickRate:       20,
+}
 type TypeOnly struct {
 	Type string `json:"type"`
 }
