@@ -5,210 +5,283 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 )
 
+const (
+	phaseLobby = iota
+	phaseCountdown
+	phasePlaying
+	phasePostGame
+)
+
 type Player struct {
-	Id   string
-	Name string
-	Ip string
-	conn *shared.Conn
-	X    float64
-	Y    float64
-	DirX int
-	DirY int
-}
-type lobby struct {
-	mu        sync.Mutex
-	players   map[string]*Player
-	nextID    int
-	counting  bool
-	countdown int
-	playing   bool
-	finished  bool
-	winner    string
-	flagOwner *string
-	flagX     float64
-	flagY     float64
+	Id         string
+	Name       string
+	conn       *shared.Conn
+	sender     *outboundSender
+	X, Y       float64
+	DirX, DirY int
 }
 
-func newLobby() *lobby {
-	return &lobby{players: make(map[string]*Player)}
+// A delayed client may skip obsolete state snapshots, but protocol control
+// messages remain queued and ordered. The worker is the sole socket writer.
+type outboundSender struct {
+	conn   *shared.Conn
+	mu     sync.Mutex
+	cond   *sync.Cond
+	queue  []outboundMessage
+	closed bool
 }
-func (l *lobby) addPlayer(name string, conn *shared.Conn, ip string) (*Player, bool) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, player := range l.players {
-		if player.Ip == ip {
-			fmt.Println("jugador ya existe con IP:", ip)
-			return player, false
+type outboundMessage struct {
+	value interface{}
+	state bool
+}
+
+func newOutboundSender(conn *shared.Conn) *outboundSender {
+	s := &outboundSender{conn: conn}
+	s.cond = sync.NewCond(&s.mu)
+	go s.run()
+	return s
+}
+func (s *outboundSender) send(value interface{}) {
+	_, isState := value.(shared.StateMessage)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	if isState {
+		for i := len(s.queue) - 1; i >= 0; i-- {
+			if !s.queue[i].state {
+				break
+			}
+			s.queue[i].value = value
+			s.cond.Signal()
+			return
 		}
 	}
+	s.queue = append(s.queue, outboundMessage{value: value, state: isState})
+	s.cond.Signal()
+}
+func (s *outboundSender) run() {
+	for {
+		s.mu.Lock()
+		for len(s.queue) == 0 && !s.closed {
+			s.cond.Wait()
+		}
+		if s.closed {
+			s.mu.Unlock()
+			return
+		}
+		message := s.queue[0]
+		s.queue = s.queue[1:]
+		s.mu.Unlock()
+		if s.conn.WriteMessage(message.value) != nil {
+			return
+		}
+	}
+}
+func (s *outboundSender) close() {
+	s.mu.Lock()
+	s.closed = true
+	s.queue = nil
+	s.cond.Broadcast()
+	s.mu.Unlock()
+}
+func (p *Player) send(value interface{}) { p.sender.send(value) }
+
+type lobby struct {
+	mu                  sync.Mutex
+	players             map[string]*Player
+	nextID              int
+	phase               int
+	countdown           int
+	cycle               uint64
+	winner              string
+	flagOwner           *string
+	flagX, flagY        float64
+	carrierWasInside    bool
+	pendingInteractions []string
+}
+
+func newLobby() *lobby { return &lobby{players: make(map[string]*Player)} }
+
+func (l *lobby) addPlayer(name string, conn *shared.Conn) (*Player, string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.phase != phaseLobby {
+		return nil, shared.ErrGameStarted
+	}
+	if len(l.players) >= shared.MaxPlayers {
+		return nil, shared.ErrLobbyFull
+	}
 	l.nextID++
-	id := fmt.Sprintf("p%d", l.nextID)
-	p := &Player{Id: id, Name: name, conn: conn, Ip: ip}
-	l.players[id] = p
-	return p, true
+	p := &Player{Id: fmt.Sprintf("p%d", l.nextID), Name: name, conn: conn, sender: newOutboundSender(conn)}
+	l.players[p.Id] = p
+	return p, ""
 }
+
 func (l *lobby) removePlayer(id string) {
+	shouldLobby := false
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	p, exists := l.players[id]
+	if !exists {
+		l.mu.Unlock()
+		return
+	}
+	if l.flagOwner != nil && *l.flagOwner == id {
+		l.resetFlagLocked()
+	}
 	delete(l.players, id)
+	p.sender.close()
+	if l.phase == phaseCountdown && len(l.players) < shared.MinPlayers {
+		l.phase, l.countdown = phaseLobby, 0
+		l.cycle++
+		shouldLobby = true
+	} else if l.phase == phasePlaying && len(l.players) == 0 {
+		l.resetRoundLocked()
+		shouldLobby = true
+	} else if l.phase == phaseLobby {
+		shouldLobby = true
+	}
+	l.mu.Unlock()
+	if shouldLobby {
+		l.BroadcastLobby()
+	}
 }
-func (l *lobby) snapshot() []shared.LobbyPlayer {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+
+func (l *lobby) snapshotLocked() []shared.LobbyPlayer {
 	list := make([]shared.LobbyPlayer, 0, len(l.players))
 	for _, p := range l.players {
 		list = append(list, shared.LobbyPlayer{ID: p.Id, Name: p.Name})
 	}
+	sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
 	return list
 }
+
 func (l *lobby) broadcast(v interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for _, p := range l.players {
-		p.conn.WriteMessage(v)
-	}
+	l.broadcastLocked(v)
 }
 func (l *lobby) broadcastLocked(v interface{}) {
 	for _, p := range l.players {
-		p.conn.WriteMessage(v)
+		p.send(v)
 	}
 }
 func (l *lobby) BroadcastLobby() {
-	msg := shared.LobbyMessage{Type: shared.TypeLobby, Players: l.snapshot()}
-	l.broadcast(msg)
+	l.mu.Lock()
+	msg := shared.LobbyMessage{Type: shared.TypeLobby, Players: l.snapshotLocked()}
+	l.broadcastLocked(msg)
+	l.mu.Unlock()
 }
-func (l *lobby) IsPlaying() bool {
+func (l *lobby) AcceptingPlayers() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.playing
+	return l.phase == phaseLobby
 }
-func (l *lobby) IsFinished() bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.finished
-}
-func (l *lobby) Winner() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.winner
-}
-func (l *lobby) CurrentCountdown() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.countdown
-}
+func (l *lobby) PlayerCount() int      { l.mu.Lock(); defer l.mu.Unlock(); return len(l.players) }
+func (l *lobby) IsPlaying() bool       { l.mu.Lock(); defer l.mu.Unlock(); return l.phase == phasePlaying }
+func (l *lobby) IsFinished() bool      { l.mu.Lock(); defer l.mu.Unlock(); return l.phase == phasePostGame }
+func (l *lobby) Winner() string        { l.mu.Lock(); defer l.mu.Unlock(); return l.winner }
+func (l *lobby) CurrentCountdown() int { l.mu.Lock(); defer l.mu.Unlock(); return l.countdown }
 func (l *lobby) FlagState() shared.FlagState {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return shared.FlagState{Owner: l.flagOwner, X: l.flagX, Y: l.flagY}
 }
+
 func (l *lobby) StartCountdown() {
 	l.mu.Lock()
-	if l.counting || l.playing || l.finished {
+	if l.phase != phaseLobby || len(l.players) < shared.MinPlayers {
 		l.mu.Unlock()
 		return
 	}
-	l.counting = true
+	l.phase, l.countdown = phaseCountdown, shared.CountdownSeconds
+	l.cycle++
+	cycle := l.cycle
 	l.mu.Unlock()
-	go l.runCountdown()
+	go l.runCountdown(cycle)
 }
-func (l *lobby) runCountdown() {
-	for seconds := 5; seconds >= 1; seconds-- {
+func (l *lobby) runCountdown(cycle uint64) {
+	for seconds := shared.CountdownSeconds; seconds >= 1; seconds-- {
 		l.mu.Lock()
+		if l.phase != phaseCountdown || l.cycle != cycle || len(l.players) < shared.MinPlayers {
+			l.mu.Unlock()
+			return
+		}
 		l.countdown = seconds
+		l.broadcastLocked(shared.CountdownMessage{Type: shared.TypeCountdown, Seconds: seconds})
 		l.mu.Unlock()
-		msg := shared.CountdownMessage{Type: shared.TypeCountdown, Seconds: seconds}
-		l.broadcast(msg)
-		fmt.Println("countdown enviado:", seconds)
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Second)
 	}
-	l.broadcast(shared.StartMessage{Type: shared.TypeStart})
-	fmt.Println("start enviado, comienza la partida")
 	l.mu.Lock()
-	l.counting = false
-	l.countdown = 0
+	if l.phase != phaseCountdown || l.cycle != cycle || len(l.players) < shared.MinPlayers {
+		l.mu.Unlock()
+		return
+	}
+	l.countdown, l.phase = 0, phasePlaying
+	l.spawnRoundLocked()
+	l.broadcastLocked(shared.StartMessage{Type: shared.TypeStart})
 	l.mu.Unlock()
-	l.beginGame()
+	go l.runGameLoop(cycle)
 }
-func (l *lobby) beginGame() {
-	config := shared.DefaultGameConfig
-	l.mu.Lock()
-	l.playing = true
-	center := float64(config.MapSize) / 2
-	l.flagOwner = nil
-	l.flagX = center
-	l.flagY = center
+
+func (l *lobby) spawnRoundLocked() {
+	center := float64(shared.DefaultGameConfig.MapSize) / 2
+	l.resetFlagLocked()
 	for _, p := range l.players {
 		angle := rand.Float64() * 2 * math.Pi
-		radius := float64(config.CircleRadius+config.PlayerRadius) + 5 + rand.Float64()*150
-		p.X = center + radius*math.Cos(angle)
-		p.Y = center + radius*math.Sin(angle)
-		p.DirX = 0
-		p.DirY = 0
+		radius := 350 + rand.Float64()*100
+		p.X, p.Y = center+radius*math.Cos(angle), center+radius*math.Sin(angle)
+		p.DirX, p.DirY = 0, 0
 	}
-	l.mu.Unlock()
-	go l.runGameLoop()
+	l.pendingInteractions = nil
 }
-func clampDir(v int) int {
-	if v > 1 {
-		return 1
-	}
-	if v < -1 {
-		return -1
-	}
-	return v
+func (l *lobby) resetFlagLocked() {
+	l.flagOwner = nil
+	l.flagX, l.flagY = 500, 500
+	l.carrierWasInside = false
 }
-func (l *lobby) setPlayerDir(id string, dx, dy int) {
+func (l *lobby) resetRoundLocked() {
+	l.phase, l.countdown, l.winner = phaseLobby, 0, ""
+	l.resetFlagLocked()
+	l.pendingInteractions = nil
+	for _, p := range l.players {
+		p.DirX, p.DirY = 0, 0
+	}
+}
+
+func (l *lobby) setPlayerDir(id string, dx, dy int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	p, ok := l.players[id]
-	if !ok {
-		return
-	}
-	p.DirX = clampDir(dx)
-	p.DirY = clampDir(dy)
-}
-func distance(x1, y1, x2, y2 float64) float64 {
-	dx := x2 - x1
-	dy := y2 - y1
-	return math.Sqrt(dx*dx + dy*dy)
-}
-func (l *lobby) interact(id string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if !l.playing {
-		return
+	if l.phase != phasePlaying {
+		return false
 	}
 	p, ok := l.players[id]
 	if !ok {
-		return
+		return false
 	}
-	radius := float64(shared.DefaultGameConfig.InteractRadius)
-	if l.flagOwner == nil {
-		if distance(p.X, p.Y, l.flagX, l.flagY) <= radius {
-			owner := id
-			l.flagOwner = &owner
-			fmt.Println("bandera capturada por", id)
-		}
-		return
-	}
-	if *l.flagOwner == id {
-		return
-	}
-	holder, ok := l.players[*l.flagOwner]
-	if !ok {
-		return
-	}
-	if distance(p.X, p.Y, holder.X, holder.Y) <= radius {
-		owner := id
-		l.flagOwner = &owner
-		fmt.Println("bandera robada por", id, "a", holder.Id)
-	}
+	p.DirX, p.DirY = dx, dy
+	return true
 }
+func (l *lobby) queueInteract(id string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.phase != phasePlaying {
+		return false
+	}
+	if _, ok := l.players[id]; !ok {
+		return false
+	}
+	l.pendingInteractions = append(l.pendingInteractions, id)
+	return true
+}
+
+func distance(x1, y1, x2, y2 float64) float64 { return math.Hypot(x2-x1, y2-y1) }
 func clampFloat(v, min, max float64) float64 {
 	if v < min {
 		return min
@@ -221,26 +294,21 @@ func clampFloat(v, min, max float64) float64 {
 func (l *lobby) buildStateLocked() shared.StateMessage {
 	players := make([]shared.PlayerState, 0, len(l.players))
 	for _, p := range l.players {
-		players = append(players, shared.PlayerState{ID: p.Id, X: p.X, Y: p.Y})
+		players = append(players, shared.PlayerState{ID: p.Id, X: roundTenth(p.X), Y: roundTenth(p.Y)})
 	}
-	return shared.StateMessage{
-		Type:    shared.TypeState,
-		Flag:    shared.FlagState{Owner: l.flagOwner, X: l.flagX, Y: l.flagY},
-		Players: players,
-	}
+	sort.Slice(players, func(i, j int) bool { return players[i].ID < players[j].ID })
+	return shared.StateMessage{Type: shared.TypeState, Flag: shared.FlagState{Owner: l.flagOwner, X: roundTenth(l.flagX), Y: roundTenth(l.flagY)}, Players: players}
 }
-func (l *lobby) runGameLoop() {
+func roundTenth(v float64) float64 { return math.Floor(math.Abs(v)*10+0.5) / 10 * math.Copysign(1, v) }
+
+func (l *lobby) runGameLoop(cycle uint64) {
 	config := shared.DefaultGameConfig
 	dt := 1.0 / float64(config.TickRate)
 	ticker := time.NewTicker(time.Second / time.Duration(config.TickRate))
 	defer ticker.Stop()
-	minBound := float64(config.PlayerRadius)
-	maxBound := float64(config.MapSize) - float64(config.PlayerRadius)
-	center := float64(config.MapSize) / 2
-	winDistance := float64(config.CircleRadius + config.PlayerRadius)
 	for range ticker.C {
 		l.mu.Lock()
-		if l.finished {
+		if l.phase != phasePlaying || l.cycle != cycle {
 			l.mu.Unlock()
 			return
 		}
@@ -248,59 +316,89 @@ func (l *lobby) runGameLoop() {
 			if p.DirX == 0 && p.DirY == 0 {
 				continue
 			}
-			m := math.Sqrt(float64(p.DirX*p.DirX + p.DirY*p.DirY))
-			nx := float64(p.DirX) / m
-			ny := float64(p.DirY) / m
-			p.X = clampFloat(p.X+nx*float64(config.Speed)*dt, minBound, maxBound)
-			p.Y = clampFloat(p.Y+ny*float64(config.Speed)*dt, minBound, maxBound)
+			m := math.Hypot(float64(p.DirX), float64(p.DirY))
+			p.X = clampFloat(p.X+float64(p.DirX)/m*float64(config.Speed)*dt, 15, 985)
+			p.Y = clampFloat(p.Y+float64(p.DirY)/m*float64(config.Speed)*dt, 15, 985)
 		}
-		if l.flagOwner != nil {
-			holder, ok := l.players[*l.flagOwner]
-			if ok {
-				l.flagX = holder.X
-				l.flagY = holder.Y
-				if distance(l.flagX, l.flagY, center, center) > winDistance {
-					l.finished = true
-					l.playing = false
-					l.winner = holder.Id
-					winnerName := holder.Name
-					l.broadcastLocked(shared.GameOverMessage{Type: shared.TypeGameOver, Winner: holder.Id})
-					fmt.Println("partida finalizada, gana:", holder.Id, winnerName)
-					l.mu.Unlock()
-					return
-				}
-			}
+		if l.evaluateVictoryLocked() {
+			l.mu.Unlock()
+			go l.returnToLobbyAfterGame(cycle)
+			return
 		}
+		l.processInteractionsLocked()
 		l.broadcastLocked(l.buildStateLocked())
 		l.mu.Unlock()
 	}
 }
+func (l *lobby) evaluateVictoryLocked() bool {
+	if l.flagOwner == nil {
+		return false
+	}
+	holder, ok := l.players[*l.flagOwner]
+	if !ok {
+		l.resetFlagLocked()
+		return false
+	}
+	l.flagX, l.flagY = holder.X, holder.Y
+	inside := distance(holder.X, holder.Y, 500, 500) <= 315
+	if l.carrierWasInside && !inside {
+		l.phase, l.winner = phasePostGame, holder.Id
+		l.broadcastLocked(shared.GameOverMessage{Type: shared.TypeGameOver, Winner: holder.Id})
+		return true
+	}
+	if inside {
+		l.carrierWasInside = true
+	}
+	return false
+}
+func (l *lobby) processInteractionsLocked() {
+	pending := l.pendingInteractions
+	l.pendingInteractions = nil
+	for _, id := range pending {
+		p, ok := l.players[id]
+		if !ok {
+			continue
+		}
+		if l.flagOwner == nil {
+			if distance(p.X, p.Y, l.flagX, l.flagY) <= float64(shared.DefaultGameConfig.InteractRadius) {
+				owner := id
+				l.flagOwner = &owner
+				l.flagX, l.flagY = p.X, p.Y
+				l.carrierWasInside = distance(p.X, p.Y, 500, 500) <= 315
+			}
+			continue
+		}
+		if *l.flagOwner == id {
+			continue
+		}
+		holder, ok := l.players[*l.flagOwner]
+		if ok && distance(p.X, p.Y, holder.X, holder.Y) <= float64(shared.DefaultGameConfig.InteractRadius) {
+			owner := id
+			l.flagOwner = &owner
+			l.flagX, l.flagY = p.X, p.Y
+			l.carrierWasInside = distance(p.X, p.Y, 500, 500) <= 315
+		}
+	}
+}
+func (l *lobby) returnToLobbyAfterGame(cycle uint64) {
+	time.Sleep(shared.PostGameSeconds * time.Second)
+	l.mu.Lock()
+	if l.phase != phasePostGame || l.cycle != cycle {
+		l.mu.Unlock()
+		return
+	}
+	l.resetRoundLocked()
+	msg := shared.LobbyMessage{Type: shared.TypeLobby, Players: l.snapshotLocked()}
+	l.broadcastLocked(msg)
+	l.mu.Unlock()
+}
 func (l *lobby) GetPlayers() []*Player {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	var players []*Player
+	players := make([]*Player, 0, len(l.players))
 	for _, p := range l.players {
 		players = append(players, p)
 	}
 	return players
 }
-func (l *lobby) ResetLobby() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	l.playing = false
-	l.finished = false
-	l.counting = false
-	l.countdown = 0
-
-	l.winner = ""
-
-	l.flagOwner = nil
-	l.flagX = 0
-	l.flagY = 0
-
-	for _, p := range l.players {
-		p.DirX = 0
-		p.DirY = 0
-	}
-}
+func (l *lobby) ResetLobby() { l.mu.Lock(); l.cycle++; l.resetRoundLocked(); l.mu.Unlock() }

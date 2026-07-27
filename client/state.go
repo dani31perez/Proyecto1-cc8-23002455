@@ -1,8 +1,10 @@
 package client
+
 import (
 	"Proyecto1-cc8-23002455/shared"
 	"sync"
 )
+
 type DiscoveredServer struct {
 	shared.ServerInfoMessage
 	IP string
@@ -18,7 +20,9 @@ type clientState struct {
 	players   []shared.PlayerState
 	winner    string
 }
+
 var CurrentState *clientState
+
 func newClientState() *clientState {
 	return &clientState{}
 }
@@ -32,6 +36,9 @@ func (s *clientState) setLobby(players []shared.LobbyPlayer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lobby = players
+	s.countdown = 0
+	s.started = false
+	s.winner = ""
 }
 func (s *clientState) setCountdown(seconds int) {
 	s.mu.Lock()

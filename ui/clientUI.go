@@ -23,12 +23,13 @@ type ClientScreen struct {
 
 	loaded bool
 
-	nameBox    components.TextBox
-	ipBox      components.TextBox
-	portBox    components.TextBox
-	connectBtn components.Button
-	reloadBtn  components.Button
-	scroll	   float64
+	nameBox           components.TextBox
+	ipBox             components.TextBox
+	portBox           components.TextBox
+	connectBtn        components.Button
+	manualDiscoverBtn components.Button
+	reloadBtn         components.Button
+	scroll            float64
 }
 
 func NewClient() *ClientScreen {
@@ -43,10 +44,10 @@ func NewClient() *ClientScreen {
 	}
 
 	c.ipBox = components.TextBox{
-		X:    300,
-		Y:    330,
-		W:    400,
-		H:    40,
+		X: 300,
+		Y: 330,
+		W: 400,
+		H: 40,
 	}
 
 	c.portBox = components.TextBox{
@@ -60,10 +61,11 @@ func NewClient() *ClientScreen {
 	c.connectBtn = components.Button{
 		X:    840,
 		Y:    330,
-		W:    200,
+		W:    190,
 		H:    50,
-		Text: "Conectar",
+		Text: "IP:puerto",
 	}
+	c.manualDiscoverBtn = components.Button{X: 1050, Y: 330, W: 270, H: 50, Text: "Buscar por IP"}
 
 	c.reloadBtn = components.Button{
 		X:    820,
@@ -92,20 +94,25 @@ func (c *ClientScreen) playerName() string {
 }
 
 func (c *ClientScreen) refreshServers() {
-	c.cards = nil
 	servers, err := client.DiscoverServer()
 	if err != nil {
 		return
 	}
+	c.setServers(servers)
+}
+
+func (c *ClientScreen) setServers(servers []client.DiscoveredServer) {
+	c.cards = nil
 	c.servers = servers
 	y := 500.0
 	for _, srv := range servers {
+		server := srv
 		card := components.ServerCard{
 			X:      300,
 			Y:      y,
 			W:      900,
 			H:      90,
-			Server: srv,
+			Server: server,
 			OnClick: func(s client.DiscoveredServer) {
 				go client.Run(s, c.playerName())
 			},
@@ -157,16 +164,20 @@ func (c *ClientScreen) Update() error {
 	c.portBox.Update()
 
 	c.connectBtn.OnClick = func() {
-		server := client.DiscoveredServer{
-			IP: c.ipBox.Text,
+		server, err := client.DirectServer(c.ipBox.Text, c.portBox.Text)
+		if err == nil {
+			go client.Run(server, c.playerName())
 		}
-
-		server.TCPPort = 8889
-
-		go client.Run(server, c.playerName())
 	}
 
 	c.connectBtn.Update()
+	c.manualDiscoverBtn.OnClick = func() {
+		servers, err := client.DiscoverServerAtIP(c.ipBox.Text)
+		if err == nil {
+			c.setServers(servers)
+		}
+	}
+	c.manualDiscoverBtn.Update()
 
 	c.reloadBtn.OnClick = func() {
 		c.refreshServers()
@@ -236,7 +247,7 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 
 	text.Draw(
 		screen,
-		"Conexion manual",
+		"Manual: IP para UDP; IP:puerto para TCP",
 		assets.MenuFont,
 		op2,
 	)
@@ -244,6 +255,7 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 	c.ipBox.Draw(screen)
 	c.portBox.Draw(screen)
 	c.connectBtn.Draw(screen)
+	c.manualDiscoverBtn.Draw(screen)
 
 	op3 := &text.DrawOptions{}
 	op3.GeoM.Translate(300, 440)

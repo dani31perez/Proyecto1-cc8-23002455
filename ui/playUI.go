@@ -1,4 +1,5 @@
 package ui
+
 import (
 	"image/color"
 
@@ -11,27 +12,29 @@ import (
 	"Proyecto1-cc8-23002455/shared"
 	"Proyecto1-cc8-23002455/ui/assets"
 	"Proyecto1-cc8-23002455/ui/components"
-
 )
+
 const mapAreaSize = 760.0
+
 type PlayScreen struct {
-	manager *Manager
-	role    string
-	input   client.KeyListener
-	names   map[string]string
+	manager   *Manager
+	role      string
+	input     client.KeyListener
+	names     map[string]string
 	backLobby components.Button
 }
+
 func NewPlay(role string) *PlayScreen {
 	p := &PlayScreen{
-		role: role,
+		role:  role,
 		names: make(map[string]string),
 	}
 
 	p.backLobby = components.Button{
-		X: ScreenWidth/2 - 130,
-		Y: ScreenHeight - 80,
-		W: 350,
-		H: 50,
+		X:    ScreenWidth/2 - 130,
+		Y:    ScreenHeight - 80,
+		W:    350,
+		H:    50,
 		Text: "Volver al lobby",
 	}
 
@@ -48,6 +51,19 @@ func (p *PlayScreen) toScreen(lx, ly float64) (float64, float64) {
 	return ox + lx*scale, oy + ly*scale
 }
 func (p *PlayScreen) Update() error {
+	if p.role == "client" && client.CurrentState != nil && !client.CurrentState.Started() {
+		clientScreen := NewClient()
+		clientScreen.manager = p.manager
+		clientScreen.loaded = true
+		p.manager.Set(clientScreen)
+		return nil
+	}
+	if p.role == "server" && server.CurrentLobby != nil && !server.CurrentLobby.IsPlaying() && !server.CurrentLobby.IsFinished() {
+		serverScreen := NewServer()
+		serverScreen.manager = p.manager
+		p.manager.Set(serverScreen)
+		return nil
+	}
 	if p.role == "client" && client.CurrentState != nil {
 		p.input.Update()
 		for _, lp := range client.CurrentState.LobbyPlayers() {
@@ -63,7 +79,7 @@ func (p *PlayScreen) Update() error {
 				serverScreen.manager = p.manager
 				p.manager.Set(serverScreen)
 			}
-		p.backLobby.Update()
+			p.backLobby.Update()
 		}
 		for _, sp := range server.CurrentLobby.GetPlayers() {
 			p.names[sp.Id] = sp.Name

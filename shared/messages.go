@@ -1,32 +1,32 @@
 package shared
- 
-import (
-	"encoding/json"
-	"reflect"
-)
 
 const (
-	TypeDiscover   = "discover"
-	TypeServerInfo = "server_info"
-	TypeJoin       = "join"
-	TypeInput      = "input"
-	TypeInteract   = "interact"
-	TypeWelcome    = "welcome"
-	TypeLobby      = "lobby"
-	TypeCountdown  = "countdown"
-	TypeStart      = "start"
-	TypeState      = "state"
-	TypeGameOver   = "game_over"
-	TypeError      = "error"
+	ProtocolVersion = 1
+	TypeDiscover    = "discover"
+	TypeServerInfo  = "server_info"
+	TypeJoin        = "join"
+	TypeInput       = "input"
+	TypeInteract    = "interact"
+	TypeWelcome     = "welcome"
+	TypeLobby       = "lobby"
+	TypeCountdown   = "countdown"
+	TypeStart       = "start"
+	TypeState       = "state"
+	TypeGameOver    = "game_over"
+	TypeError       = "error"
+
+	CountdownSeconds = 5
+	PostGameSeconds  = 5
+	MinPlayers       = 2
+	MaxPlayers       = 100
+	NameMaxLength    = 20
 )
+
 var DefaultGameConfig = GameConfig{
-	MapSize:        1000,
-	CircleRadius:   300,
-	PlayerRadius:   15,
-	InteractRadius: 40,
-	Speed:          200,
-	TickRate:       20,
+	MapSize: 1000, CircleRadius: 300, PlayerRadius: 15,
+	InteractRadius: 40, Speed: 200, TickRate: 20,
 }
+
 type TypeOnly struct {
 	Type string `json:"type"`
 }
@@ -108,38 +108,4 @@ type GameOverMessage struct {
 type ErrorMessage struct {
 	Type   string `json:"type"`
 	Reason string `json:"reason"`
-}
-
-func (c * Conn) ValidateFields(raw []byte, v interface{}) error {
-    var fields map[string]json.RawMessage
-
-    if err := json.Unmarshal(raw, &fields); err != nil {
-        return err
-    }
-
-    t := reflect.TypeOf(v)
-
-    for i := 0; i < t.NumField(); i++ {
-        field := t.Field(i)
-
-        tag := field.Tag.Get("json")
-
-        if tag == "" || tag == "-" {
-            continue
-        }
-
-		rawField, ok := fields[tag]
-
-        if !ok {
-            return c.WriteMessage(ErrorMessage{Type: TypeError, Reason: ErrMissingField})
-        }
-
-		value := reflect.New(field.Type)
-
-		if err := json.Unmarshal(rawField, value.Interface()); err != nil {
-			return c.WriteMessage(ErrorMessage{	Type:   TypeError, Reason: ErrInvalidField})
-		}
-    }
-
-    return nil
 }
