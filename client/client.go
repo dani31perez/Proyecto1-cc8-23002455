@@ -93,15 +93,6 @@ func DiscoverServer() ([]DiscoveredServer, error) {
 	return discover(addresses)
 }
 
-// DiscoverServerAtIP is the unicast UDP fallback for networks that block broadcast.
-func DiscoverServerAtIP(ip string) ([]DiscoveredServer, error) {
-	parsed := net.ParseIP(strings.TrimSpace(ip))
-	if parsed == nil {
-		return nil, fmt.Errorf("IP de servidor inválida")
-	}
-	return discover([]*net.UDPAddr{{IP: parsed, Port: shared.DiscoveryPort}})
-}
-
 // DirectServer accepts either IP:puerto or an IP plus the port from the UI.
 func DirectServer(address, portText string) (DiscoveredServer, error) {
 	address = strings.TrimSpace(address)

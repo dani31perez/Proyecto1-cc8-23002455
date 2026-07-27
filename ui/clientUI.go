@@ -27,7 +27,6 @@ type ClientScreen struct {
 	ipBox             components.TextBox
 	portBox           components.TextBox
 	connectBtn        components.Button
-	manualDiscoverBtn components.Button
 	reloadBtn         components.Button
 	scroll            float64
 }
@@ -61,11 +60,10 @@ func NewClient() *ClientScreen {
 	c.connectBtn = components.Button{
 		X:    840,
 		Y:    330,
-		W:    190,
+		W:    250,
 		H:    50,
 		Text: "IP:puerto",
 	}
-	c.manualDiscoverBtn = components.Button{X: 1050, Y: 330, W: 270, H: 50, Text: "Buscar por IP"}
 
 	c.reloadBtn = components.Button{
 		X:    820,
@@ -171,13 +169,6 @@ func (c *ClientScreen) Update() error {
 	}
 
 	c.connectBtn.Update()
-	c.manualDiscoverBtn.OnClick = func() {
-		servers, err := client.DiscoverServerAtIP(c.ipBox.Text)
-		if err == nil {
-			c.setServers(servers)
-		}
-	}
-	c.manualDiscoverBtn.Update()
 
 	c.reloadBtn.OnClick = func() {
 		c.refreshServers()
@@ -255,7 +246,6 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 	c.ipBox.Draw(screen)
 	c.portBox.Draw(screen)
 	c.connectBtn.Draw(screen)
-	c.manualDiscoverBtn.Draw(screen)
 
 	op3 := &text.DrawOptions{}
 	op3.GeoM.Translate(300, 440)
