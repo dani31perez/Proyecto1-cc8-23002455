@@ -21,11 +21,11 @@ type Notification struct {
 
 var Notify Notification
 
-func (n *Notification) Show(title, message string) {
+func (n *Notification) Show(title, message string, seconds int) {
 	n.Title = title
 	n.Message = message
 	n.Visible = true
-	n.until = time.Now().Add(3 * time.Second)
+	n.until = time.Now().Add(time.Duration(seconds) * time.Second)
 }
 
 func (n *Notification) Update() {

@@ -71,7 +71,7 @@ func readLoop(conn *shared.Conn, state *clientState, done chan struct{}) {
 		case shared.TypeError:
 			var msg shared.ErrorMessage
 			if shared.DecodeMessage(raw, &msg) == nil {
-				Notify.Show("ERROR RECIBIDO DEL SERVIDOR:", msg.Reason)
+				Notify.Show("ERROR RECIBIDO DEL SERVIDOR:", msg.Reason, 3)
 			}
 		}
 	}

@@ -7,7 +7,7 @@ import (
 	"Proyecto1-cc8-23002455/server"
 	"Proyecto1-cc8-23002455/ui/assets"
 	"Proyecto1-cc8-23002455/ui/components"
-
+	"Proyecto1-cc8-23002455/client"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
@@ -163,15 +163,7 @@ func (s *ServerScreen) Draw(screen *ebiten.Image) {
 	s.back.Draw(screen)
 	if server.CurrentLobby != nil {
 		if seconds := server.CurrentLobby.CurrentCountdown(); seconds > 0 {
-			op2 := &text.DrawOptions{}
-			op2.GeoM.Translate(500, ScreenHeight-90)
-			op2.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
-			text.Draw(screen, "la partida inicia en...", assets.MenuFont, op2)
-
-			op3 := &text.DrawOptions{}
-			op3.GeoM.Translate(500, ScreenHeight-60)
-			op3.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
-			text.Draw(screen, strconv.Itoa(seconds), assets.TitleFont, op3)
+			client.Notify.Show("Inicia en", strconv.Itoa(seconds), 1)
 		}
 	}
 }

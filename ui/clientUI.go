@@ -40,6 +40,7 @@ func NewClient() *ClientScreen {
 		Y: 230,
 		W: 400,
 		H: 40,
+		Text: "dani",
 	}
 
 	c.ipBox = components.TextBox{
@@ -295,10 +296,7 @@ func (c *ClientScreen) Draw(screen *ebiten.Image) {
 		}
 
 		if seconds := client.CurrentState.Countdown(); seconds > 0 {
-			opc := &text.DrawOptions{}
-			opc.GeoM.Translate(150, y)
-			opc.ColorScale.ScaleWithColor(color.RGBA{255, 220, 50, 255})
-			text.Draw(screen, "inicia en "+strconv.Itoa(seconds)+"...", assets.MenuFont, opc)
+			client.Notify.Show("Inicia en", strconv.Itoa(seconds), 1)
 		}
 	}
 }
