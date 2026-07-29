@@ -23,7 +23,6 @@ func Run() {
 	l := newLobby()
 	CurrentLobby = l
 	go runDiscovery(tcpPort, l)
-	fmt.Println("servidor escuchando TCP en puerto", tcpPort)
 	for {
 		conn, err := tcpListener.Accept()
 		if err != nil {

@@ -8,6 +8,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+    "strconv"
+    "strings"
 )
 
 const (
@@ -395,10 +397,19 @@ func (l *lobby) returnToLobbyAfterGame(cycle uint64) {
 func (l *lobby) GetPlayers() []*Player {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	players := make([]*Player, 0, len(l.players))
+
 	for _, p := range l.players {
 		players = append(players, p)
 	}
+
+	sort.Slice(players, func(i, j int) bool {
+		id1, _ := strconv.Atoi(strings.TrimPrefix(players[i].Id, "p"))
+		id2, _ := strconv.Atoi(strings.TrimPrefix(players[j].Id, "p"))
+		return id1 < id2
+	})
+
 	return players
 }
 func (l *lobby) ResetLobby() { l.mu.Lock(); l.cycle++; l.resetRoundLocked(); l.mu.Unlock() }

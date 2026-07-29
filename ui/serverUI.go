@@ -86,6 +86,7 @@ func (s *ServerScreen) Update() error {
 			Name:   p.Name + " " + p.Id,
 		}
 
+		card.Update()
 		s.cards = append(
 			s.cards,
 			card,
@@ -159,6 +160,7 @@ func (s *ServerScreen) Draw(screen *ebiten.Image) {
 		card.Draw(screen)
 	}
 
+	s.back.Draw(screen)
 	if server.CurrentLobby != nil {
 		if seconds := server.CurrentLobby.CurrentCountdown(); seconds > 0 {
 			op2 := &text.DrawOptions{}

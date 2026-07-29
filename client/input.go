@@ -1,7 +1,6 @@
 package client
 
 import (
-	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"Proyecto1-cc8-23002455/shared"
@@ -33,12 +32,10 @@ func (k *KeyListener) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyE) {
-		fmt.Println("[ACCION] Enviando 'interact' al servidor")
 		CurrentConn.WriteMessage(shared.InteractMessage{Type: shared.TypeInteract})
 	}
 
 	if dx != k.lastX || dy != k.lastY {
-		fmt.Printf("[INTENCIÓN] Cambio detectado -> Enviando: X=%d, Y=%d\n", dx, dy)
 		sendInput(CurrentConn, dx, dy)
 		
 		k.lastX = dx
